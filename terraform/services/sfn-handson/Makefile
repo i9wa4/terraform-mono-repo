@@ -32,8 +32,6 @@ validate: fmt
 
 plan: init validate
 	@echo "Planning Terraform in $(TERRAFORM_DIR)"
-	echo "$$(pwd)"
-	echo "$$(ls)"
 	terraform -chdir=$(TERRAFORM_DIR) plan -no-color -out=.terraform.plan.$(ENV).tfplan $(TF_OPT)
 
 apply: plan
