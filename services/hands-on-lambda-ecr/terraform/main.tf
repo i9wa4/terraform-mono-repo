@@ -22,7 +22,15 @@ resource "aws_iam_role" "lambda_exec_role" {
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17",
-    Statement =
+    Statement = [
+      {
+        Action = "sts:AssumeRole",
+        Effect = "Allow",
+        Principal = {
+          Service = "lambda.amazonaws.com"
+        }
+      }
+    ]
   })
 
   tags = {
@@ -47,17 +55,26 @@ resource "aws_iam_policy" "lambda_exec_policy" {
         Resource = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${var.lambda_function_name}:*"
       },
       {
-        Action =,
+        Action = [
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ],
         Effect   = "Allow",
         Resource = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${var.lambda_function_name}:log-stream:*"
       },
       {
-        Action =,
+        Action = [
+          "ecr:GetAuthorizationToken"
+        ],
         Effect   = "Allow",
         Resource = "*" # GetAuthorizationTokenにはワイルドカードリソースが必要
       },
       {
-        Action =,
+        Action = [
+          "ecr:BatchGetImage",
+          "ecr:GetDownloadUrlForLayer"
+          // 必要に応じて "ecr:BatchCheckLayerAvailability" も追加
+        ],
         Effect   = "Allow",
         Resource = aws_ecr_repository.app_ecr_repo.arn
       }
