@@ -42,24 +42,19 @@ jobs:
         working-directory: ./services/hands-on-lambda-ecr/terraform # Terraformファイルのパス
 
       - name: Terraform Apply (ECR and IAM)
-        # ECRリポジトリとLambda実行ロールのみをターゲットにして作成
-        # あるいは、この段階専用のTerraform構成を用意する
-        # ここでは簡単のため、一度すべてのplan/applyを実行し、
-        # image_uriはダミーか空でエラーにならないようにするか、
-        # Lambdaリソースの作成を comment out するなど一時的な対応が必要になる場合がある。
-        # より良いのは、ECRリポジトリ専用のtfファイル群を用意するか、targetで指定すること。
-        # 以下はイメージ。実際の運用ではECRとIAMロール作成に特化したapplyが望ましい。
         run: |
           terraform apply -auto-approve -no-color \
             -var="aws_region=${{ env.AWS_REGION }}" \
             -var="ecr_repository_name=${{ env.ECR_REPOSITORY_NAME }}" \
             -var="lambda_function_name=${{ env.LAMBDA_FUNCTION_NAME }}" \
-            -var="ecr_image_uri=placeholder" # Lambda作成でエラーにならないよう仮の値を設定
-            # -target=aws_ecr_repository.app_ecr_repo \
-            # -target=aws_iam_role.lambda_exec_role \
-            # -target=aws_iam_policy.lambda_exec_policy \
-            # -target=aws_iam_role_policy_attachment.lambda_exec_policy_attachment
-            # (Terraformのバージョンや構成により、上記target指定の挙動は確認が必要です)
+            -target=aws_ecr_repository.app_ecr_repo \
+            -target=aws_iam_role.lambda_exec_role \
+            -target=aws_iam_policy.lambda_exec_policy \
+            -target=aws_iam_role_policy_attachment.lambda_exec_policy_attachment
+        # CloudWatch Log GroupはLambda関数に直接紐づくため、ここではターゲットに含めず
+        # 最後のLambdaデプロイジョブで一緒に作成されるようにします。
+        # もし事前に作成したい場合はターゲットに追加しても構いません。
+        # -target=aws_cloudwatch_log_group.lambda_log_group
         working-directory: ./services/hands-on-lambda-ecr/terraform
 
   # 2. DockerイメージをビルドしてECRにプッシュするジョブ
