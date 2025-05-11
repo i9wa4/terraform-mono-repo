@@ -31,7 +31,7 @@ jobs:
       - name: Configure AWS credentials using OIDC
         uses: aws-actions/configure-aws-credentials@v4 # 最新のv4.xを使用
         with:
-          role-to-assume: ${{ secrets.HANDS_ON_LAMBDA_ECR_IAM_ARN }} # OIDCロールARNに置き換える
+          role-to-assume: ${{ secrets.HANDS_ON_LAMBDA_ECR_ARN_IAM_OIDC }} # OIDCロールARNに置き換える
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
@@ -62,7 +62,7 @@ jobs:
       - name: Configure AWS credentials using OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.HANDS_ON_LAMBDA_ECR_IAM_ARN }}
+          role-to-assume: ${{ secrets.HANDS_ON_LAMBDA_ECR_ARN_IAM_OIDC }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Terraform
