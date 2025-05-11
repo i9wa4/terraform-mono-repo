@@ -49,6 +49,7 @@ jobs:
             -var="aws_region=${{ env.AWS_REGION }}" \
             -var="ecr_repository_name=${{ env.ECR_REPOSITORY_NAME }}" \
             -var="lambda_function_name=${{ env.LAMBDA_FUNCTION_NAME }}" \
+            -var="ecr_image_uri=not_used_in_this_step" \
             -target=aws_ecr_repository.app_ecr_repo \
             -target=aws_iam_role.lambda_exec_role \
             -target=aws_iam_policy.lambda_exec_policy \
