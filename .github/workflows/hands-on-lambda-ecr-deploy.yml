@@ -1,0 +1,100 @@
+name: hands-on-lambda-ecr-deploy
+run-name: ${{ github.event_name }} on ${{ github.ref_name }} by @${{ github.actor }}
+
+on:
+  # push:
+  #   branches: [ main ]
+  workflow_dispatch: # 手動トリガーを許可
+
+env:
+  AWS_REGION: "ap-northeast-1" # 自身のリージョンに変更
+  ECR_REPOSITORY_NAME: "my-python-lambda-app" # Terraform変数と一致させる
+  LAMBDA_FUNCTION_NAME: "hello-world-python-container" # Terraform変数と一致させる
+  TF_VERSION: "1.11.4"
+
+permissions:
+  id-token: write   # AWSへのOIDCに必要
+  contents: read    # actions/checkoutに必要
+  # pull-requests: write # オプション: PRへのプランコメント追加用
+
+jobs:
+  build-and-push-image:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+    outputs:
+      image_uri: ${{ steps.build-image.outputs.image_uri }} # 次のジョブにイメージURIを渡す
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials using OIDC
+        uses: aws-actions/configure-aws-credentials@v4 # 最新のv4.xを使用
+        with:
+          role-to-assume: ${{ secrets.HANDS_ON_LAMBDA_ECR_IAM_ARN }} # OIDCロールARNに置き換える
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2 # 最新のv2.xを使用
+
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }} # Git SHAをイメージタグとして使用し、不変性を確保
+        working-directory: ./services/hands-on-lambda-ecr/app
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY_NAME:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY_NAME:$IMAGE_TAG
+          echo "image_uri=$ECR_REGISTRY/$ECR_REPOSITORY_NAME:$IMAGE_TAG" >> $GITHUB_OUTPUT
+
+  deploy-terraform:
+    name: Deploy Infrastructure with Terraform
+    runs-on: ubuntu-latest
+    needs: build-and-push-image # イメージビルドジョブに依存
+    environment: dev # オプション: GitHub Environmentsを使用する場合 (保護/シークレット用)
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials using OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.HANDS_ON_LAMBDA_ECR_IAM_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3 # 最新のv3.xを使用
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Init
+        id: init
+        run: terraform init
+        working-directory: ./services/hands-on-lambda-ecr/terraform
+
+      - name: Terraform Validate
+        id: validate
+        run: terraform validate -no-color
+        working-directory: ./services/hands-on-lambda-ecr/terraform
+
+      # オプション: PR用のTerraform Plan (別のワークフローまたは条件付きステップとして実装可能)
+      - name: Terraform Plan
+        id: plan
+        run: |
+          terraform plan -no-color -var="ecr_image_uri=${{ needs.build-and-push-image.outputs.image_uri }}" -out=tfplan
+          # 必要に応じてPRにプランをコメントするロジックを追加
+        working-directory: ./services/hands-on-lambda-ecr/terraform
+        continue-on-error: true # プランに変更がある場合、非ゼロで終了する可能性があるため
+
+      - name: Terraform Apply
+        id: apply
+        run: |
+          terraform apply -auto-approve -no-color \
+          -var="ecr_image_uri=${{ needs.build-and-push-image.outputs.image_uri }}" \
+          -var="aws_region=${{ env.AWS_REGION }}" \
+          -var="ecr_repository_name=${{ env.ECR_REPOSITORY_NAME }}" \
+          -var="lambda_function_name=${{ env.LAMBDA_FUNCTION_NAME }}"
+        working-directory: ./services/hands-on-lambda-ecr/terraform
