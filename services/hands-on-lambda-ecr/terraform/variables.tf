@@ -13,7 +13,7 @@ variable "project_name" {
 variable "ecr_repository_name" {
   description = "ECRリポジトリ名"
   type        = string
-  default     = "my-python-lambda-app"
+  default     = "hands-on-lambda-ecr"
 }
 
 variable "lambda_function_name" {

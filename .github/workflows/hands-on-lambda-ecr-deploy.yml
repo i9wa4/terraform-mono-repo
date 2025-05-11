@@ -8,7 +8,7 @@ on:
 
 env:
   AWS_REGION: "ap-northeast-1" # 自身のリージョンに変更
-  ECR_REPOSITORY_NAME: "my-python-lambda-app" # Terraform変数と一致させる
+  ECR_REPOSITORY_NAME: "hands-on-lambda-ecr" # Terraform変数と一致させる
   LAMBDA_FUNCTION_NAME: "hello-world-python-container" # Terraform変数と一致させる
   TF_VERSION: "1.11.4"
 
