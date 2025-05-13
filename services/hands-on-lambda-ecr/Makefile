@@ -50,28 +50,6 @@ tf-validate: ## Validate Terraform configuration for the specified environment
 	@echo "Validating Terraform configuration in $(TERRAFORM_DIR) for $(ENVIRONMENT)"
 	terraform -chdir=$(TERRAFORM_DIR) validate
 
-tf-apply-iam: ## Apply ECR and IAM resources using Terraform
-	@echo "Applying ECR and IAM resources in $(TERRAFORM_DIR) for $(ENVIRONMENT)"
-	@echo "Params: ECR_REPOSITORY_NAME=$(ECR_REPOSITORY_NAME), LAMBDA_FUNCTION_NAME=$(LAMBDA_FUNCTION_NAME), TF_LOG=$(TF_LOG), ENVIRONMENT=$(ENVIRONMENT)"
-	TF_LOG=$(TF_LOG) terraform -chdir=$(TERRAFORM_DIR) apply -auto-approve \
-		-var="ecr_repository_name=$(ECR_REPOSITORY_NAME)" \
-		-var="lambda_function_name=$(LAMBDA_FUNCTION_NAME)" \
-		$(TF_ENVIRONMENT_VAR_OPT) \
-		-var="ecr_image_uri=not_used_for_iam_step" \
-		-target=aws_ecr_repository.app_ecr_repo \
-		-target=aws_iam_role.lambda_exec_role \
-		-target=aws_iam_policy.lambda_exec_policy \
-		-target=aws_iam_role_policy_attachment.lambda_exec_policy_attachment
-
-tf-apply-lambda: ## Apply Lambda function and related resources using Terraform
-	@echo "Applying Lambda function in $(TERRAFORM_DIR) for $(ENVIRONMENT)"
-	@echo "Params: ECR_IMAGE_URI=$(ECR_IMAGE_URI), ECR_REPOSITORY_NAME=$(ECR_REPOSITORY_NAME), LAMBDA_FUNCTION_NAME=$(LAMBDA_FUNCTION_NAME), ENVIRONMENT=$(ENVIRONMENT)"
-	terraform -chdir=$(TERRAFORM_DIR) apply -auto-approve \
-		-var="ecr_image_uri=$(ECR_IMAGE_URI)" \
-		-var="ecr_repository_name=$(ECR_REPOSITORY_NAME)" \
-		-var="lambda_function_name=$(LAMBDA_FUNCTION_NAME)" \
-		$(TF_ENVIRONMENT_VAR_OPT)
-
 # Original generic Terraform targets (can be kept for local use)
 init:
 	@echo "Initializing Terraform in $(TERRAFORM_DIR)"
@@ -87,7 +65,7 @@ validate: fmt
 
 plan: init validate
 	@echo "Planning Terraform in $(TERRAFORM_DIR)"
-	terraform -chdir=$(TERRAFORM_DIR) plan -out=.terraform.plan.$(ENVIRONMENT).tfplan -no-color $(TF_OPT)
+	terraform -chdir=$(TERRAFORM_DIR) plan -out=.terraform.plan.$(ENVIRONMENT).tfplan -no-color $(TF_ENVIRONMENT_VAR_OPT) $(TF_OPT)
 
 apply: init
 	@echo "Applying Terraform in $(TERRAFORM_DIR)"
