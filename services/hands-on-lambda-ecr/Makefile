@@ -32,8 +32,12 @@ ifneq ($(ENVIRONMENT),dev)
 	TF_ENVIRONMENT_VAR_OPT := -var="environment=$(ENVIRONMENT)"
 endif
 
+ecr-login: ## Login to ECR
+	@echo "Logging in to ECR registry $(ECR_REGISTRY)"
+	aws ecr get-login-password --region $(AWS_REGION) | docker login --username AWS --password-stdin $(ECR_REGISTRY)
+
 # Docker build and push target
-build-push: ## Build and push Docker image to ECR
+ecr-build-push: ## Build and push Docker image to ECR
 	@echo "Building and pushing Docker image for $(ENVIRONMENT) from $(APP_DIR)"
 	@echo "ECR Registry: $(ECR_REGISTRY)"
 	@echo "Repository Name: $(FULL_ECR_REPOSITORY_NAME)"
@@ -88,25 +92,25 @@ destroy: init
 
 # Environment specific aliases using ENVIRONMENT variable
 dev-plan:  ## [dev] plan
-	@$(MAKE) plan ENVIRONMENT=dev TF_OPT="$(TF_OPT)"
+	@$(MAKE) plan ENVIRONMENT=dev TF_OPT=$(TF_OPT)
 
 dev-apply:  ## [dev] apply
-	@$(MAKE) apply ENVIRONMENT=dev TF_OPT="$(TF_OPT)"
+	@$(MAKE) apply ENVIRONMENT=dev TF_OPT=$(TF_OPT)
 
 dev-plan-destroy:  ## [dev] plan-destroy
-	@$(MAKE) plan-destroy ENVIRONMENT=dev TF_OPT="$(TF_OPT)"
+	@$(MAKE) plan-destroy ENVIRONMENT=dev TF_OPT=$(TF_OPT)
 
 dev-destroy:  ## [dev] destroy
-	@$(MAKE) destroy ENVIRONMENT=dev TF_OPT="$(TF_OPT)"
+	@$(MAKE) destroy ENVIRONMENT=dev TF_OPT=$(TF_OPT)
 
 prod-plan:  ## [prod] plan
-	@$(MAKE) plan ENVIRONMENT=prod TF_OPT="$(TF_OPT)"
+	@$(MAKE) plan ENVIRONMENT=prod TF_OPT=$(TF_OPT)
 
 prod-apply:  ## [prod] apply
-	@$(MAKE) apply ENVIRONMENT=prod TF_OPT="$(TF_OPT)"
+	@$(MAKE) apply ENVIRONMENT=prod TF_OPT=$(TF_OPT)
 
 prod-plan-destroy:  ## [prod] plan-destroy
-	@$(MAKE) plan-destroy ENVIRONMENT=prod TF_OPT="$(TF_OPT)"
+	@$(MAKE) plan-destroy ENVIRONMENT=prod TF_OPT=$(TF_OPT)
 
 prod-destroy:  ## [prod] destroy
-	@$(MAKE) destroy ENVIRONMENT=prod TF_OPT="$(TF_OPT)"
+	@$(MAKE) destroy ENVIRONMENT=prod TF_OPT=$(TF_OPT)

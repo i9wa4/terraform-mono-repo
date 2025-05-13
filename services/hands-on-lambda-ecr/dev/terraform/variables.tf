@@ -10,6 +10,30 @@ variable "project_name" {
   default     = "hands-on-lambda-ecr"
 }
 
+variable "aws_account_id" {
+  type        = string
+  description = "AWS Account ID where the OIDC provider is located."
+  default     = "000000000000"
+}
+
+variable "github_oidc_provider_url" {
+  type        = string
+  description = "The URL of the GitHub OIDC provider (e.g., token.actions.githubusercontent.com)."
+  default     = "token.actions.githubusercontent.com"
+}
+
+variable "github_repository" {
+  type        = string
+  description = "The GitHub repository (e.g., your-org/your-repo) allowed to assume this role."
+  default     = "i9wa4/terraform-mono-repo"
+}
+
+variable "role_name" {
+  type        = string
+  description = "Name of the IAM role."
+  default     = "hands-on-lambda-ecr"
+}
+
 variable "ecr_repository_name" {
   description = "ECRリポジトリ名"
   type        = string

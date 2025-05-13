@@ -16,6 +16,33 @@ resource "aws_ecr_repository" "app_ecr_repo" {
 data "aws_caller_identity" "current" {}
 # リージョンは var.aws_region を使用
 
+resource "aws_iam_role" "lambda_ecr_role" {
+  name = var.role_name
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Effect = "Allow",
+        Principal = {
+          Federated = "arn:aws:iam::${var.aws_account_id}:oidc-provider/${var.github_oidc_provider_url}"
+        },
+        Action = "sts:AssumeRoleWithWebIdentity",
+        Condition = {
+          StringLike = {
+            "${var.github_oidc_provider_url}:sub" = "repo:${var.github_repository}:*",
+            "${var.github_oidc_provider_url}:aud" = "sts.amazonaws.com"
+          }
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_ecr_role_admin_attachment" {
+  role       = aws_iam_role.lambda_ecr_role.name // または "hands-on-lambda-ecr"
+  policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
+}
+
 # Lambda実行ロール
 resource "aws_iam_role" "lambda_exec_role" {
   name = "${var.lambda_function_name}-exec-role"
@@ -78,6 +105,28 @@ resource "aws_iam_policy" "lambda_exec_policy" {
         Effect   = "Allow",
         Resource = aws_ecr_repository.app_ecr_repo.arn
       }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "lambda_ecr_role_inline_policy" {
+  name = "AdministratorAccess"             // インポートしたいインラインポリシーの名前
+  role = aws_iam_role.lambda_ecr_role.name // このポリシーをアタッチするIAMロール名
+  // 既存のaws_iam_role.lambda_ecr_roleのname属性を参照します。
+
+  // policy属性には、インポートするポリシーのJSONを記述します。
+  // importコマンド実行時にはこの内容がAWS上の実際のポリシーで上書きされるため、
+  // 有効なJSONであれば、ひとまず内容は不正確でも構いません。
+  // ただし、import後に terraform plan/apply を実行する際は、
+  // 実際のポリシー内容と一致させる必要があります。
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Action   = "ec2:Describe*", // 例: インポートしたいポリシーの仮の内容
+        Effect   = "Allow",
+        Resource = "*"
+      },
     ]
   })
 }
