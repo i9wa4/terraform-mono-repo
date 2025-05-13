@@ -42,7 +42,7 @@ ecr-build-push: ## Build and push Docker image to ECR
 	@echo "ECR Registry: $(ECR_REGISTRY)"
 	@echo "Repository Name: $(FULL_ECR_REPOSITORY_NAME)"
 	@echo "Image Tag: $(IMAGE_TAG)"
-	cd $(APP_DIR) && docker build -t $(ECR_REGISTRY)/$(FULL_ECR_REPOSITORY_NAME):$(IMAGE_TAG) .
+	cd $(APP_DIR) && docker build -t $(ECR_REGISTRY)/$(FULL_ECR_REPOSITORY_NAME):$(IMAGE_TAG) . --platform=linux/arm64 --provenance=false
 	docker push $(ECR_REGISTRY)/$(FULL_ECR_REPOSITORY_NAME):$(IMAGE_TAG)
 
 # Terraform targets as called by GitHub Actions
