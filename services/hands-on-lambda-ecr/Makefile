@@ -96,7 +96,7 @@ apply: init
 	# If TF_OPT contains a positional argument (e.g., a directory path), it conflicts with applying a specific plan file,
 	# leading to a "Too many command line arguments" error.
 	# If apply-specific options (like -parallelism=N) were intended via TF_OPT, they will not be used by this target.
-	terraform -chdir=$(TERRAFORM_DIR) apply .terraform.plan.$(ENVIRONMENT).tfplan -auto-approve
+	terraform -chdir=$(TERRAFORM_DIR) apply ".terraform.plan.$(ENVIRONMENT).tfplan" -auto-approve
 
 plan-destroy: init
 	@echo "Planning Terraform destroy in $(TERRAFORM_DIR)"
@@ -106,7 +106,7 @@ destroy: init
 	@echo "Destroying Terraform resources in $(TERRAFORM_DIR)"
 	# $(TF_OPT) is omitted here for the same reasons as in the 'apply' target.
 	# Plan-affecting options from TF_OPT should be used during 'make plan-destroy'.
-	terraform -chdir=$(TERRAFORM_DIR) destroy .terraform.plan.destroy.$(ENVIRONMENT).tfplan -auto-approve
+	terraform -chdir=$(TERRAFORM_DIR) destroy ".terraform.plan.destroy.$(ENVIRONMENT).tfplan" -auto-approve
 
 # Environment specific aliases using ENVIRONMENT variable
 dev-plan:  ## [dev] plan
