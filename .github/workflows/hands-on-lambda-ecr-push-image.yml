@@ -1,0 +1,42 @@
+name: hands-on-lambda-ecr-push-image
+run-name: ${{ github.event_name }} on ${{ github.ref_name }} by @${{ github.actor }}
+
+on:
+  workflow_dispatch:
+
+env:
+  AWS_REGION: "ap-northeast-1"
+  ECR_REPOSITORY_NAME: "hands-on-lambda-ecr"
+
+permissions:
+  id-token: write # For aws-actions/configure-aws-credentials
+  contents: read   # For actions/checkout
+
+jobs:
+  build_and_push_image:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+    # This job assumes the ECR repository already exists.
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials using OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.HANDS_ON_LAMBDA_ECR_ARN_IAM_OIDC }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          IMAGE_TAG: ${{ github.sha }}
+        working-directory: ./services/hands-on-lambda-ecr/app # Dockerfileのあるディレクトリ
+        run: |
+          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY_NAME:$IMAGE_TAG .
+          docker push $ECR_REGISTRY/$ECR_REPOSITORY_NAME:$IMAGE_TAG
