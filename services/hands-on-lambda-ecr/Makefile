@@ -34,18 +34,17 @@ build-push: ## Build and push Docker image to ECR
 
 # Terraform targets as called by GitHub Actions
 tf-init: ## Initialize Terraform for the specified environment
-	@echo "Initializing Terraform in $(TERRAFORM_DIR) for $(ENVIRONMENT) with AWS Region $(AWS_REGION)"
+	@echo "Initializing Terraform in $(TERRAFORM_DIR) for $(ENVIRONMENT)"
 	terraform -chdir=$(TERRAFORM_DIR) init
 
 tf-validate: ## Validate Terraform configuration for the specified environment
-	@echo "Validating Terraform configuration in $(TERRAFORM_DIR) for $(ENVIRONMENT) with AWS Region $(AWS_REGION)"
+	@echo "Validating Terraform configuration in $(TERRAFORM_DIR) for $(ENVIRONMENT)"
 	terraform -chdir=$(TERRAFORM_DIR) validate
 
 tf-apply-iam: ## Apply ECR and IAM resources using Terraform
 	@echo "Applying ECR and IAM resources in $(TERRAFORM_DIR) for $(ENVIRONMENT)"
-	@echo "Params: AWS_REGION=$(AWS_REGION), ECR_REPOSITORY_NAME=$(ECR_REPOSITORY_NAME), LAMBDA_FUNCTION_NAME=$(LAMBDA_FUNCTION_NAME), TF_LOG=$(TF_LOG)"
+	@echo "Params: ECR_REPOSITORY_NAME=$(ECR_REPOSITORY_NAME), LAMBDA_FUNCTION_NAME=$(LAMBDA_FUNCTION_NAME), TF_LOG=$(TF_LOG), ENVIRONMENT=$(ENVIRONMENT)"
 	TF_LOG=$(TF_LOG) terraform -chdir=$(TERRAFORM_DIR) apply -auto-approve \
-		-var="aws_region=$(AWS_REGION)" \
 		-var="ecr_repository_name=$(ECR_REPOSITORY_NAME)" \
 		-var="lambda_function_name=$(LAMBDA_FUNCTION_NAME)" \
 		-var="environment=$(ENVIRONMENT)" \
@@ -57,10 +56,9 @@ tf-apply-iam: ## Apply ECR and IAM resources using Terraform
 
 tf-apply-lambda: ## Apply Lambda function and related resources using Terraform
 	@echo "Applying Lambda function in $(TERRAFORM_DIR) for $(ENVIRONMENT)"
-	@echo "Params: ECR_IMAGE_URI=$(ECR_IMAGE_URI), AWS_REGION=$(AWS_REGION), ECR_REPOSITORY_NAME=$(ECR_REPOSITORY_NAME), LAMBDA_FUNCTION_NAME=$(LAMBDA_FUNCTION_NAME)"
+	@echo "Params: ECR_IMAGE_URI=$(ECR_IMAGE_URI), ECR_REPOSITORY_NAME=$(ECR_REPOSITORY_NAME), LAMBDA_FUNCTION_NAME=$(LAMBDA_FUNCTION_NAME), ENVIRONMENT=$(ENVIRONMENT)"
 	terraform -chdir=$(TERRAFORM_DIR) apply -auto-approve \
 		-var="ecr_image_uri=$(ECR_IMAGE_URI)" \
-		-var="aws_region=$(AWS_REGION)" \
 		-var="ecr_repository_name=$(ECR_REPOSITORY_NAME)" \
 		-var="lambda_function_name=$(LAMBDA_FUNCTION_NAME)" \
 		-var="environment=$(ENVIRONMENT)"

@@ -51,7 +51,7 @@ jobs:
           terraform_version: ${{ env.TF_VERSION }}
 
       - name: Terraform Init (ECR and IAM)
-        run: make tf-init AWS_REGION=${{ env.AWS_REGION }} ENVIRONMENT=${{ github.event.inputs.environment }}
+        run: make tf-init ENVIRONMENT=${{ github.event.inputs.environment }}
         working-directory: ${{ env.TF_WORKING_DIR }}
 
       - name: Terraform Apply (ECR and IAM)
@@ -59,7 +59,6 @@ jobs:
           TF_LOG: "DEBUG" # Makefile target should consume this if needed
         run: |
           make tf-apply-iam \
-            AWS_REGION="${{ env.AWS_REGION }}" \
             ECR_REPOSITORY_NAME="${{ env.CURRENT_ECR_REPOSITORY_NAME }}" \
             LAMBDA_FUNCTION_NAME="${{ env.CURRENT_LAMBDA_FUNCTION_NAME }}" \
             ENVIRONMENT="${{ github.event.inputs.environment }}" \
@@ -96,18 +95,17 @@ jobs:
           terraform_version: ${{ env.TF_VERSION }}
 
       - name: Terraform Init
-        run: make tf-init AWS_REGION=${{ env.AWS_REGION }} ENVIRONMENT=${{ github.event.inputs.environment }}
+        run: make tf-init ENVIRONMENT=${{ github.event.inputs.environment }}
         working-directory: ${{ env.TF_WORKING_DIR }}
 
       - name: Terraform Validate
-        run: make tf-validate AWS_REGION=${{ env.AWS_REGION }} ENVIRONMENT=${{ github.event.inputs.environment }}
+        run: make tf-validate ENVIRONMENT=${{ github.event.inputs.environment }}
         working-directory: ${{ env.TF_WORKING_DIR }}
 
       - name: Terraform Apply (Lambda and rest)
         run: |
           make tf-apply-lambda \
             ECR_IMAGE_URI="${{ steps.login-ecr.outputs.registry }}/${{ env.CURRENT_ECR_REPOSITORY_NAME }}:${{ github.sha }}" \
-            AWS_REGION="${{ env.AWS_REGION }}" \
             ECR_REPOSITORY_NAME="${{ env.CURRENT_ECR_REPOSITORY_NAME }}" \
             LAMBDA_FUNCTION_NAME="${{ env.CURRENT_LAMBDA_FUNCTION_NAME }}" \
             ENVIRONMENT="${{ github.event.inputs.environment }}"
