@@ -3,11 +3,17 @@ run-name: ${{ github.event_name }} on ${{ github.ref_name }} by @${{ github.acto
 
 on:
   workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy (e.g., dev, prod)'
+        required: true
+        default: 'dev'
+        type: string
 
 env:
   AWS_REGION: "ap-northeast-1"
-  ECR_REPOSITORY_NAME: "hands-on-lambda-ecr"
-  LAMBDA_FUNCTION_NAME: "hello-world-python-container"
+  ECR_REPOSITORY_BASE_NAME: "hands-on-lambda-ecr" # Base name, env suffix will be added
+  LAMBDA_FUNCTION_BASE_NAME: "hello-world-python-container" # Base name, env suffix will be added
   TF_VERSION: "1.11.4" # Terraformのバージョンを固定 (例: "1.8.4")
 
 permissions:
@@ -19,6 +25,11 @@ jobs:
   provision_ecr_and_iam:
     name: Provision ECR Repository and IAM Role
     runs-on: ubuntu-latest
+    env:
+      # Define environment-specific names and paths
+      CURRENT_ECR_REPOSITORY_NAME: ${{ env.ECR_REPOSITORY_BASE_NAME }}-${{ github.event.inputs.environment }}
+      CURRENT_LAMBDA_FUNCTION_NAME: ${{ env.LAMBDA_FUNCTION_BASE_NAME }}-${{ github.event.inputs.environment }}
+      TF_WORKING_DIR: ./services/hands-on-lambda-ecr/${{ github.event.inputs.environment }}/terraform
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -26,12 +37,13 @@ jobs:
       - name: Configure AWS credentials using OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.HANDS_ON_LAMBDA_ECR_ARN_IAM_OIDC }}
+          role-to-assume: ${{ secrets.HANDS_ON_LAMBDA_ECR_ARN_IAM_OIDC }} # User might need to make this env-specific
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
+      # Login to ECR is not needed for this job's specific terraform targets
+      # - name: Login to Amazon ECR
+      #   id: login-ecr
+      #   uses: aws-actions/amazon-ecr-login@v2
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -40,7 +52,7 @@ jobs:
 
       - name: Terraform Init (ECR and IAM)
         run: terraform init
-        working-directory: ./services/hands-on-lambda-ecr/dev # Terraformファイルのパス
+        working-directory: ${{ env.TF_WORKING_DIR }}
 
       - name: Terraform Apply (ECR and IAM)
         env:
@@ -48,8 +60,9 @@ jobs:
         run: |
           terraform apply -auto-approve -no-color \
             -var="aws_region=${{ env.AWS_REGION }}" \
-            -var="ecr_repository_name=${{ env.ECR_REPOSITORY_NAME }}" \
-            -var="lambda_function_name=${{ env.LAMBDA_FUNCTION_NAME }}" \
+            -var="ecr_repository_name=${{ env.CURRENT_ECR_REPOSITORY_NAME }}" \
+            -var="lambda_function_name=${{ env.CURRENT_LAMBDA_FUNCTION_NAME }}" \
+            -var="environment=${{ github.event.inputs.environment }}" \
             -var="ecr_image_uri=not_used_in_this_step" \
             -target=aws_ecr_repository.app_ecr_repo \
             -target=aws_iam_role.lambda_exec_role \
@@ -59,13 +72,18 @@ jobs:
         # 最後のLambdaデプロイジョブで一緒に作成されるようにします。
         # もし事前に作成したい場合はターゲットに追加しても構いません。
         # -target=aws_cloudwatch_log_group.lambda_log_group
-        working-directory: ./services/hands-on-lambda-ecr/dev
+        working-directory: ${{ env.TF_WORKING_DIR }}
 
   # 2. Lambda関数など残りのインフラをデプロイするジョブ
   deploy_lambda:
     name: Deploy Lambda Function with Terraform
     runs-on: ubuntu-latest
     needs: provision_ecr_and_iam # Depends on ECR/IAM provisioning
+    env:
+      # Define environment-specific names and paths
+      CURRENT_ECR_REPOSITORY_NAME: ${{ env.ECR_REPOSITORY_BASE_NAME }}-${{ github.event.inputs.environment }}
+      CURRENT_LAMBDA_FUNCTION_NAME: ${{ env.LAMBDA_FUNCTION_BASE_NAME }}-${{ github.event.inputs.environment }}
+      TF_WORKING_DIR: ./services/hands-on-lambda-ecr/${{ github.event.inputs.environment }}/terraform
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -73,8 +91,12 @@ jobs:
       - name: Configure AWS credentials using OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.HANDS_ON_LAMBDA_ECR_ARN_IAM_OIDC }}
+          role-to-assume: ${{ secrets.HANDS_ON_LAMBDA_ECR_ARN_IAM_OIDC }} # User might need to make this env-specific
           aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr # This step is crucial for getting the ECR registry
+        uses: aws-actions/amazon-ecr-login@v2
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -83,17 +105,18 @@ jobs:
 
       - name: Terraform Init
         run: terraform init
-        working-directory: ./services/hands-on-lambda-ecr/dev
+        working-directory: ${{ env.TF_WORKING_DIR }}
 
       - name: Terraform Validate
         run: terraform validate -no-color
-        working-directory: ./services/hands-on-lambda-ecr/dev
+        working-directory: ${{ env.TF_WORKING_DIR }}
 
       - name: Terraform Apply (Lambda and rest)
         run: |
           terraform apply -auto-approve -no-color \
-            -var="ecr_image_uri=${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY_NAME }}:${{ github.sha }}" \
+            -var="ecr_image_uri=${{ steps.login-ecr.outputs.registry }}/${{ env.CURRENT_ECR_REPOSITORY_NAME }}:${{ github.sha }}" \
             -var="aws_region=${{ env.AWS_REGION }}" \
-            -var="ecr_repository_name=${{ env.ECR_REPOSITORY_NAME }}" \
-            -var="lambda_function_name=${{ env.LAMBDA_FUNCTION_NAME }}"
-        working-directory: ./services/hands-on-lambda-ecr/dev
+            -var="ecr_repository_name=${{ env.CURRENT_ECR_REPOSITORY_NAME }}" \
+            -var="lambda_function_name=${{ env.CURRENT_LAMBDA_FUNCTION_NAME }}" \
+            -var="environment=${{ github.event.inputs.environment }}"
+        working-directory: ${{ env.TF_WORKING_DIR }}
