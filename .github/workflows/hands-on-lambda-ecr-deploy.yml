@@ -40,7 +40,7 @@ jobs:
 
       - name: Terraform Init (ECR and IAM)
         run: terraform init
-        working-directory: ./services/hands-on-lambda-ecr/terraform # Terraformファイルのパス
+        working-directory: ./services/hands-on-lambda-ecr/dev # Terraformファイルのパス
 
       - name: Terraform Apply (ECR and IAM)
         env:
@@ -59,7 +59,7 @@ jobs:
         # 最後のLambdaデプロイジョブで一緒に作成されるようにします。
         # もし事前に作成したい場合はターゲットに追加しても構いません。
         # -target=aws_cloudwatch_log_group.lambda_log_group
-        working-directory: ./services/hands-on-lambda-ecr/terraform
+        working-directory: ./services/hands-on-lambda-ecr/dev
 
   # 2. Lambda関数など残りのインフラをデプロイするジョブ
   deploy_lambda:
@@ -83,11 +83,11 @@ jobs:
 
       - name: Terraform Init
         run: terraform init
-        working-directory: ./services/hands-on-lambda-ecr/terraform
+        working-directory: ./services/hands-on-lambda-ecr/dev
 
       - name: Terraform Validate
         run: terraform validate -no-color
-        working-directory: ./services/hands-on-lambda-ecr/terraform
+        working-directory: ./services/hands-on-lambda-ecr/dev
 
       - name: Terraform Apply (Lambda and rest)
         run: |
@@ -96,4 +96,4 @@ jobs:
             -var="aws_region=${{ env.AWS_REGION }}" \
             -var="ecr_repository_name=${{ env.ECR_REPOSITORY_NAME }}" \
             -var="lambda_function_name=${{ env.LAMBDA_FUNCTION_NAME }}"
-        working-directory: ./services/hands-on-lambda-ecr/terraform
+        working-directory: ./services/hands-on-lambda-ecr/dev
