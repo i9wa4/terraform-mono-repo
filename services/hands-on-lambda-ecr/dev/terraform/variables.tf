@@ -23,10 +23,9 @@ variable "lambda_function_name" {
 }
 
 variable "ecr_image_uri" {
-  description = "Lambda関数のECRイメージURI (タグ/ダイジェストを含む)。CI/CDによって提供される"
+  description = "Lambda関数のECRイメージURI (デプロイ時に設定する)"
   type        = string
-  # デフォルト値なし。CI/CDからの提供を期待。
-  # 初回apply時には、プレースホルダや手動でプッシュしたイメージURIが必要になる場合がある。
+  default     = "dummy"
 }
 
 variable "environment" {
