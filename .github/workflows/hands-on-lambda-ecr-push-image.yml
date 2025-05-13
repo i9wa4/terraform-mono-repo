@@ -42,9 +42,14 @@ jobs:
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
-          # Construct full ECR repo name with environment suffix
           FULL_ECR_REPOSITORY_NAME: ${{ env.ECR_REPOSITORY_BASE_NAME }}-${{ github.event.inputs.environment }}
-        working-directory: ./services/hands-on-lambda-ecr/${{ github.event.inputs.environment }}/app # Dockerfileのあるディレクトリ
+          # Pass environment to make, can be used in Makefile if needed
+          ENVIRONMENT: ${{ github.event.inputs.environment }}
+        working-directory: ./services/hands-on-lambda-ecr/${{ github.event.inputs.environment }}/app
         run: |
-          docker build -t $ECR_REGISTRY/$FULL_ECR_REPOSITORY_NAME:$IMAGE_TAG .
-          docker push $ECR_REGISTRY/$FULL_ECR_REPOSITORY_NAME:$IMAGE_TAG
+          make build-push \
+            ECR_REGISTRY="$ECR_REGISTRY" \
+            FULL_ECR_REPOSITORY_NAME="$FULL_ECR_REPOSITORY_NAME" \
+            IMAGE_TAG="$IMAGE_TAG" \
+            AWS_REGION="${{ env.AWS_REGION }}" \
+            ENVIRONMENT="$ENVIRONMENT"
