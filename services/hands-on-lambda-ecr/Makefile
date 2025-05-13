@@ -1,6 +1,6 @@
 SHELL := /usr/bin/env bash
-# .SHELLFLAGS := -o verbose -o xtrace -o errexit -o nounset -o pipefail -o posix -c
-.SHELLFLAGS := -o errexit -o nounset -o pipefail -o posix -c
+.SHELLFLAGS := -o verbose -o xtrace -o errexit -o nounset -o pipefail -o posix -c
+# .SHELLFLAGS := -o errexit -o nounset -o pipefail -o posix -c
 .DEFAULT_GOAL := help
 
 # all targets are phony
