@@ -61,7 +61,7 @@ jobs:
         # -target=aws_cloudwatch_log_group.lambda_log_group
         working-directory: ./services/hands-on-lambda-ecr/terraform
 
-  # 3. Lambda関数など残りのインフラをデプロイするジョブ
+  # 2. Lambda関数など残りのインフラをデプロイするジョブ
   deploy_lambda:
     name: Deploy Lambda Function with Terraform
     runs-on: ubuntu-latest
