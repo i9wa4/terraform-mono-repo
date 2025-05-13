@@ -5,10 +5,13 @@ on:
   workflow_dispatch:
     inputs:
       environment:
-        description: 'Environment to deploy (e.g., dev, prod)'
+        description: 'Environment to deploy'
         required: true
         default: 'dev'
-        type: string
+        type: choice
+        options:
+          - dev
+          - prod
 
 env:
   AWS_REGION: "ap-northeast-1"
