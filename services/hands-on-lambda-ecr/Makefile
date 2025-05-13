@@ -19,9 +19,18 @@ TERRAFORM_DIR := $(ENVIRONMENT)/terraform
 APP_DIR := $(ENVIRONMENT)/app
 TF_OPT ?=
 IMAGE_TAG ?= $(shell git rev-parse HEAD)
-# Variables passed from GitHub Actions or command line
-# ECR_REGISTRY, FULL_ECR_REPOSITORY_NAME, IMAGE_TAG, AWS_REGION,
-# ECR_REPOSITORY_NAME, LAMBDA_FUNCTION_NAME, ECR_IMAGE_URI, TF_LOG
+
+# Variables passed from GitHub Actions or command line:
+# ECR_REGISTRY, FULL_ECR_REPOSITORY_NAME, IMAGE_TAG,
+# ECR_REPOSITORY_NAME, LAMBDA_FUNCTION_NAME, ECR_IMAGE_URI, TF_LOG, ENVIRONMENT
+# AWS_REGION is typically handled by AWS provider configuration (e.g., credentials file or instance profile)
+
+# Conditionally set Terraform environment variable option
+# Only pass -var="environment=..." if $(ENVIRONMENT) is not "dev" (the default in variables.tf)
+TF_ENVIRONMENT_VAR_OPT :=
+ifneq ($(ENVIRONMENT),dev)
+	TF_ENVIRONMENT_VAR_OPT := -var="environment=$(ENVIRONMENT)"
+endif
 
 # Docker build and push target
 build-push: ## Build and push Docker image to ECR
@@ -47,7 +56,7 @@ tf-apply-iam: ## Apply ECR and IAM resources using Terraform
 	TF_LOG=$(TF_LOG) terraform -chdir=$(TERRAFORM_DIR) apply -auto-approve \
 		-var="ecr_repository_name=$(ECR_REPOSITORY_NAME)" \
 		-var="lambda_function_name=$(LAMBDA_FUNCTION_NAME)" \
-		-var="environment=$(ENVIRONMENT)" \
+		$(TF_ENVIRONMENT_VAR_OPT) \
 		-var="ecr_image_uri=not_used_for_iam_step" \
 		-target=aws_ecr_repository.app_ecr_repo \
 		-target=aws_iam_role.lambda_exec_role \
@@ -61,7 +70,7 @@ tf-apply-lambda: ## Apply Lambda function and related resources using Terraform
 		-var="ecr_image_uri=$(ECR_IMAGE_URI)" \
 		-var="ecr_repository_name=$(ECR_REPOSITORY_NAME)" \
 		-var="lambda_function_name=$(LAMBDA_FUNCTION_NAME)" \
-		-var="environment=$(ENVIRONMENT)"
+		$(TF_ENVIRONMENT_VAR_OPT)
 
 # Original generic Terraform targets (can be kept for local use)
 init:
