@@ -14,10 +14,57 @@ help:  ## print this help
 
 # Get the service name from the current directory
 SERVICE_NAME := $(shell basename $(shell pwd))
-ENV ?= dev
-TERRAFORM_DIR := $(ENV)
+ENVIRONMENT ?= dev
+TERRAFORM_DIR := $(ENVIRONMENT)/terraform
+APP_DIR := $(ENVIRONMENT)/app
 TF_OPT ?=
+# Variables passed from GitHub Actions or command line
+# ECR_REGISTRY, FULL_ECR_REPOSITORY_NAME, IMAGE_TAG, AWS_REGION,
+# ECR_REPOSITORY_NAME, LAMBDA_FUNCTION_NAME, ECR_IMAGE_URI, TF_LOG
 
+# Docker build and push target
+build-push: ## Build and push Docker image to ECR
+	@echo "Building and pushing Docker image for $(ENVIRONMENT) from $(APP_DIR)"
+	@echo "ECR Registry: $(ECR_REGISTRY)"
+	@echo "Repository Name: $(FULL_ECR_REPOSITORY_NAME)"
+	@echo "Image Tag: $(IMAGE_TAG)"
+	cd $(APP_DIR) && docker build -t $(ECR_REGISTRY)/$(FULL_ECR_REPOSITORY_NAME):$(IMAGE_TAG) .
+	docker push $(ECR_REGISTRY)/$(FULL_ECR_REPOSITORY_NAME):$(IMAGE_TAG)
+
+# Terraform targets as called by GitHub Actions
+tf-init: ## Initialize Terraform for the specified environment
+	@echo "Initializing Terraform in $(TERRAFORM_DIR) for $(ENVIRONMENT) with AWS Region $(AWS_REGION)"
+	terraform -chdir=$(TERRAFORM_DIR) init
+
+tf-validate: ## Validate Terraform configuration for the specified environment
+	@echo "Validating Terraform configuration in $(TERRAFORM_DIR) for $(ENVIRONMENT) with AWS Region $(AWS_REGION)"
+	terraform -chdir=$(TERRAFORM_DIR) validate
+
+tf-apply-iam: ## Apply ECR and IAM resources using Terraform
+	@echo "Applying ECR and IAM resources in $(TERRAFORM_DIR) for $(ENVIRONMENT)"
+	@echo "Params: AWS_REGION=$(AWS_REGION), ECR_REPOSITORY_NAME=$(ECR_REPOSITORY_NAME), LAMBDA_FUNCTION_NAME=$(LAMBDA_FUNCTION_NAME), TF_LOG=$(TF_LOG)"
+	TF_LOG=$(TF_LOG) terraform -chdir=$(TERRAFORM_DIR) apply -auto-approve \
+		-var="aws_region=$(AWS_REGION)" \
+		-var="ecr_repository_name=$(ECR_REPOSITORY_NAME)" \
+		-var="lambda_function_name=$(LAMBDA_FUNCTION_NAME)" \
+		-var="environment=$(ENVIRONMENT)" \
+		-var="ecr_image_uri=not_used_for_iam_step" \
+		-target=aws_ecr_repository.app_ecr_repo \
+		-target=aws_iam_role.lambda_exec_role \
+		-target=aws_iam_policy.lambda_exec_policy \
+		-target=aws_iam_role_policy_attachment.lambda_exec_policy_attachment
+
+tf-apply-lambda: ## Apply Lambda function and related resources using Terraform
+	@echo "Applying Lambda function in $(TERRAFORM_DIR) for $(ENVIRONMENT)"
+	@echo "Params: ECR_IMAGE_URI=$(ECR_IMAGE_URI), AWS_REGION=$(AWS_REGION), ECR_REPOSITORY_NAME=$(ECR_REPOSITORY_NAME), LAMBDA_FUNCTION_NAME=$(LAMBDA_FUNCTION_NAME)"
+	terraform -chdir=$(TERRAFORM_DIR) apply -auto-approve \
+		-var="ecr_image_uri=$(ECR_IMAGE_URI)" \
+		-var="aws_region=$(AWS_REGION)" \
+		-var="ecr_repository_name=$(ECR_REPOSITORY_NAME)" \
+		-var="lambda_function_name=$(LAMBDA_FUNCTION_NAME)" \
+		-var="environment=$(ENVIRONMENT)"
+
+# Original generic Terraform targets (can be kept for local use)
 init:
 	@echo "Initializing Terraform in $(TERRAFORM_DIR)"
 	terraform -chdir=$(TERRAFORM_DIR) init
@@ -32,40 +79,41 @@ validate: fmt
 
 plan: init validate
 	@echo "Planning Terraform in $(TERRAFORM_DIR)"
-	terraform -chdir=$(TERRAFORM_DIR) plan -out=.terraform.plan.$(ENV).tfplan -no-color $(TF_OPT)
+	terraform -chdir=$(TERRAFORM_DIR) plan -out=.terraform.plan.$(ENVIRONMENT).tfplan -no-color $(TF_OPT)
 
 apply: init
 	@echo "Applying Terraform in $(TERRAFORM_DIR)"
-	terraform -chdir=$(TERRAFORM_DIR) apply .terraform.plan.$(ENV).tfplan -auto-approve $(TF_OPT)
+	terraform -chdir=$(TERRAFORM_DIR) apply .terraform.plan.$(ENVIRONMENT).tfplan -auto-approve $(TF_OPT)
 
 plan-destroy: init
 	@echo "Planning Terraform destroy in $(TERRAFORM_DIR)"
-	terraform -chdir=$(TERRAFORM_DIR) plan -destroy -out=.terraform.plan.destroy.$(ENV).tfplan -no-color $(TF_OPT)
+	terraform -chdir=$(TERRAFORM_DIR) plan -destroy -out=.terraform.plan.destroy.$(ENVIRONMENT).tfplan -no-color $(TF_OPT)
 
 destroy: init
 	@echo "Destroying Terraform resources in $(TERRAFORM_DIR)"
-	terraform -chdir=$(TERRAFORM_DIR) destroy .terraform.plan.destroy.$(ENV).tfplan -auto-approve $(TF_OPT)
+	terraform -chdir=$(TERRAFORM_DIR) destroy .terraform.plan.destroy.$(ENVIRONMENT).tfplan -auto-approve $(TF_OPT)
 
+# Environment specific aliases using ENVIRONMENT variable
 dev-plan:  ## [dev] plan
-	@$(MAKE) plan ENV=dev TF_OPT="$(TF_OPT)"
+	@$(MAKE) plan ENVIRONMENT=dev TF_OPT="$(TF_OPT)"
 
 dev-apply:  ## [dev] apply
-	@$(MAKE) apply ENV=dev TF_OPT="$(TF_OPT)"
+	@$(MAKE) apply ENVIRONMENT=dev TF_OPT="$(TF_OPT)"
 
 dev-plan-destroy:  ## [dev] plan-destroy
-	@$(MAKE) plan-destroy ENV=dev TF_OPT="$(TF_OPT)"
+	@$(MAKE) plan-destroy ENVIRONMENT=dev TF_OPT="$(TF_OPT)"
 
 dev-destroy:  ## [dev] destroy
-	@$(MAKE) destroy ENV=dev TF_OPT="$(TF_OPT)"
+	@$(MAKE) destroy ENVIRONMENT=dev TF_OPT="$(TF_OPT)"
 
 prod-plan:  ## [prod] plan
-	@$(MAKE) plan ENV=prod TF_OPT="$(TF_OPT)"
+	@$(MAKE) plan ENVIRONMENT=prod TF_OPT="$(TF_OPT)"
 
 prod-apply:  ## [prod] apply
-	@$(MAKE) apply ENV=prod TF_OPT="$(TF_OPT)"
+	@$(MAKE) apply ENVIRONMENT=prod TF_OPT="$(TF_OPT)"
 
 prod-plan-destroy:  ## [prod] plan-destroy
-	@$(MAKE) plan-destroy ENV=prod TF_OPT="$(TF_OPT)"
+	@$(MAKE) plan-destroy ENVIRONMENT=prod TF_OPT="$(TF_OPT)"
 
 prod-destroy:  ## [prod] destroy
-	@$(MAKE) destroy ENV=prod TF_OPT="$(TF_OPT)"
+	@$(MAKE) destroy ENVIRONMENT=prod TF_OPT="$(TF_OPT)"
