@@ -20,10 +20,10 @@ variable "aws_region" {
 variable "common_tags" {
   description = "Common tags for resources. Merged with lambda-specific tags."
   type        = map(string)
-  default     = {
+  default = {
     Project     = "hands-on-lambda-ecr" # Default project tag.
     ManagedBy   = "Terraform"
-    Environment = "dev"                 # Default environment tag.
+    Environment = "dev" # Default environment tag.
   }
 }
 
