@@ -13,25 +13,44 @@ help:  ## print this help
 	@echo 'Targets:'
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
+init:
+	terraform -chdir=$(TARGET_TF_DIR) init -reconfigure -backend-config="key=hands-on-lambda-ecr/$(TARGET_TF_DIR)/terraform.tfstate"
+
+validate:
+	terraform -chdir=$(TARGET_TF_DIR) validate
+
+plan: init validate
+	terraform -chdir=$(TARGET_TF_DIR) plan $(TF_CMD_ARGS)
+
+apply: init validate
+	terraform -chdir=$(TARGET_TF_DIR) apply -auto-approve $(TF_CMD_ARGS)
+
+plan-destroy: init validate
+	terraform -chdir=$(TARGET_TF_DIR) plan -destroy $(TF_CMD_ARGS)
+
+destroy: init
+	terraform -chdir=$(TARGET_TF_DIR) destroy -auto-approv e$(TF_CMD_ARGS)
 
 # --- Configuration ---
-# These are base paths and default values.
-# Dedicated targets will often override ENV and LAMBDA.
 ENV ?= dev
-LAMBDA ?= hello_world # Default lambda name for targets like lambda-build-push if not specified
-LAMBDAS_BASE_DIR := lambdas
 COMMON_DIR := terraform
 ENVIRONMENTS_BASE_DIR := environments
 
-# Docker image details
-ECR_REGISTRY ?= YOUR_AWS_ACCOUNT_ID.dkr.ecr.YOUR_AWS_REGION.amazonaws.com # <-- REPLACE YOUR_AWS_ACCOUNT_ID and YOUR_AWS_REGION with your actual values
-IMAGE_TAG ?= $(shell git rev-parse --short HEAD)
-# LAMBDA_IMAGE_URI is typically passed to lambda apply targets, or constructed.
-# For 'make lambda-build-push', it's constructed using ECR_REGISTRY, LAMBDA, IMAGE_TAG.
-DEFAULT_LAMBDA_IMAGE_URI := $(ECR_REGISTRY)/$(LAMBDA):$(IMAGE_TAG)
+# Dev - Common Resources
+DEV_COMMON_TF_DIR := $(COMMON_DIR)
+DEV_COMMON_TF_CMD_ARGS := -var-file=../$(ENVIRONMENTS_BASE_DIR)/dev/terraform.tfvars
 
-# AWS Region - ensure this is set in your environment or AWS config
-AWS_REGION ?= ap-northeast-1
+dev-common-init: ## [dev common] Initialize Terraform
+	$(MAKE) init TARGET_TF_DIR=$(DEV_COMMON_TF_DIR)
+
+dev-common-plan: ## [dev common] Plan Terraform
+	$(MAKE) plan TARGET_TF_DIR=$(DEV_COMMON_TF_DIR) TF_CMD_ARGS="$(DEV_COMMON_TF_CMD_ARGS)"
+
+dev-common-apply: ## [dev common] Apply Terraform (prompts)
+	$(MAKE) apply TARGET_TF_DIR=$(DEV_COMMON_TF_DIR) TF_CMD_ARGS="$(DEV_COMMON_TF_CMD_ARGS)"
+
+dev-common-destroy: ## [dev common] Destroy resources (prompts)
+	$(MAKE) destroy TARGET_TF_DIR=$(DEV_COMMON_TF_DIR) TF_CMD_ARGS="$(DEV_COMMON_TF_CMD_ARGS)"
 
 
 # --- Lambda Specific Docker Targets ---
@@ -41,64 +60,33 @@ lambda-ecr-login: ## Log in to AWS ECR (uses ECR_REGISTRY, AWS_REGION)
 	aws ecr get-login-password --region $(AWS_REGION) | docker login --username AWS --password-stdin $(ECR_REGISTRY)
 
 lambda-build-push: lambda-ecr-login ## Build and push Docker image for a lambda to ECR. Vars: LAMBDA, ECR_REGISTRY, IMAGE_TAG
-	$(eval CURRENT_LAMBDA_APP_DIR := $(LAMBDAS_BASE_DIR)/$(LAMBDA)/app)
-	$(eval CURRENT_LAMBDA_IMAGE_URI := $(ECR_REGISTRY)/$(LAMBDA):$(IMAGE_TAG))
+	$(eval _CURRENT_LAMBDA_APP_DIR := $(LAMBDAS_BASE_DIR)/$(LAMBDA)/app)
+	$(eval _CURRENT_LAMBDA_IMAGE_URI := $(ECR_REGISTRY)/$(LAMBDA):$(IMAGE_TAG))
 	@echo "Building and pushing Docker image for lambda: $(LAMBDA) from $(CURRENT_LAMBDA_APP_DIR)"
-	@echo "Image: $(CURRENT_LAMBDA_IMAGE_URI)"
+	@echo "Image: $(_CURRENT_LAMBDA_IMAGE_URI)"
 	@if [ ! -d "$(CURRENT_LAMBDA_APP_DIR)" ]; then echo "Error: Lambda app directory '$(CURRENT_LAMBDA_APP_DIR)' does not exist. Create it with a Dockerfile."; exit 1; fi
-	docker build -t $(CURRENT_LAMBDA_IMAGE_URI) $(CURRENT_LAMBDA_APP_DIR) --platform=linux/arm64 --provenance=false
-	docker push $(CURRENT_LAMBDA_IMAGE_URI)
+	docker build -t $(_CURRENT_LAMBDA_IMAGE_URI) $(CURRENT_LAMBDA_APP_DIR) --platform=linux/arm64 --provenance=false
+	docker push $(_CURRENT_LAMBDA_IMAGE_URI)
 
-# --- Generic (Internal) Terraform Targets ---
-# These targets expect TARGET_TF_DIR and TF_CMD_ARGS to be set by the calling dedicated target.
-init: ## [Internal] Initialize Terraform for the active component and environment
-	@echo "==> Initializing Terraform in $(TARGET_TF_DIR) for S3 key: hands-on-lambda-ecr/$(TARGET_TF_DIR)/terraform.tfstate"
-	terraform -chdir=$(TARGET_TF_DIR) init -reconfigure -backend-config="key=hands-on-lambda-ecr/$(TARGET_TF_DIR)/terraform.tfstate"
 
-validate: ## [Internal] Validate Terraform configuration for the active component
-	@echo "==> Validating Terraform in $(TARGET_TF_DIR)"
-	terraform -chdir=$(TARGET_TF_DIR) validate
+LAMBDA ?= hello_world # Default lambda name for targets like lambda-build-push if not specified
+LAMBDAS_BASE_DIR := lambdas
 
-plan: init ## [Internal] Create a Terraform execution plan for the active component
-	@echo "==> Planning changes in $(TARGET_TF_DIR) with args: $(TF_CMD_ARGS)"
-	terraform -chdir=$(TARGET_TF_DIR) plan $(TF_CMD_ARGS)
 
-apply: init ## [Internal] Apply Terraform changes for the active component (prompts for approval)
-	@echo "==> Applying changes in $(TARGET_TF_DIR) with args: $(TF_CMD_ARGS)"
-	terraform -chdir=$(TARGET_TF_DIR) apply $(TF_CMD_ARGS)
+# AWS Region - ensure this is set in your environment or AWS config
+#
 
-apply-auto: init ## [Internal] Apply Terraform changes for the active component (auto-approves)
-	@echo "==> Applying changes (auto-approve) in $(TARGET_TF_DIR) with args: $(TF_CMD_ARGS)"
-	terraform -chdir=$(TARGET_TF_DIR) apply -auto-approve $(TF_CMD_ARGS)
+_AWS_REGION_FROM_TF := $(shell terraform -chdir=$(DEV_HW_LAMBDA_TF_DIR) console -var-file=../../environments/dev/terraform.tfvars <<< "var.aws_region" 2>/dev/null | sed 's/"//g')
+AWS_REGION := $(_AWS_REGION_FROM_TF)
+_AWS_ACCOUNT_ID_FROM_TF := $(shell terraform -chdir=$(DEV_HW_LAMBDA_TF_DIR) console -var-file=../../environments/dev/terraform.tfvars <<< "data.aws_caller_identity.current.account_id" 2>/dev/null | sed 's/"//g')
 
-destroy: init ## [Internal] Destroy Terraform-managed resources for the active component (prompts for approval)
-	@echo "==> Destroying resources in $(TARGET_TF_DIR) with args: $(TF_CMD_ARGS)"
-	terraform -chdir=$(TARGET_TF_DIR) destroy $(TF_CMD_ARGS)
+# Docker image details
+ECR_REGISTRY ?= YOUR_AWS_ACCOUNT_ID.dkr.ecr.YOUR_AWS_REGION.amazonaws.com # <-- REPLACE YOUR_AWS_ACCOUNT_ID and YOUR_AWS_REGION with your actual values
+IMAGE_TAG ?= $(shell git rev-parse --short HEAD)
+# LAMBDA_IMAGE_URI is typically passed to lambda apply targets, or constructed.
+# For 'make lambda-build-push', it's constructed using ECR_REGISTRY, LAMBDA, IMAGE_TAG.
+DEFAULT_LAMBDA_IMAGE_URI := $(ECR_REGISTRY)/$(LAMBDA):$(IMAGE_TAG)
 
-destroy-auto: init ## [Internal] Destroy Terraform-managed resources for the active component (auto-approves)
-	@echo "==> Destroying resources (auto-approve) in $(TARGET_TF_DIR) with args: $(TF_CMD_ARGS)"
-	terraform -chdir=$(TARGET_TF_DIR) destroy -auto-approve $(TF_CMD_ARGS)
-
-# --- Dedicated Targets for 'dev' environment ---
-
-# Dev - Common Resources
-DEV_COMMON_TF_DIR := $(COMMON_DIR)
-DEV_COMMON_TF_CMD_ARGS := -var-file=../$(ENVIRONMENTS_BASE_DIR)/dev/terraform.tfvars
-
-dev-common-init: ## [dev common] Initialize Terraform
-	@$(MAKE) init TARGET_TF_DIR=$(DEV_COMMON_TF_DIR)
-dev-common-validate: ## [dev common] Validate Terraform
-	@$(MAKE) validate TARGET_TF_DIR=$(DEV_COMMON_TF_DIR)
-dev-common-plan: ## [dev common] Plan Terraform
-	@$(MAKE) plan TARGET_TF_DIR=$(DEV_COMMON_TF_DIR) TF_CMD_ARGS="$(DEV_COMMON_TF_CMD_ARGS)"
-dev-common-apply: ## [dev common] Apply Terraform (prompts)
-	@$(MAKE) apply TARGET_TF_DIR=$(DEV_COMMON_TF_DIR) TF_CMD_ARGS="$(DEV_COMMON_TF_CMD_ARGS)"
-dev-common-apply-auto: ## [dev common] Apply Terraform (auto-approves)
-	@$(MAKE) apply-auto TARGET_TF_DIR=$(DEV_COMMON_TF_DIR) TF_CMD_ARGS="$(DEV_COMMON_TF_CMD_ARGS)"
-dev-common-destroy: ## [dev common] Destroy resources (prompts)
-	@$(MAKE) destroy TARGET_TF_DIR=$(DEV_COMMON_TF_DIR) TF_CMD_ARGS="$(DEV_COMMON_TF_CMD_ARGS)"
-dev-common-destroy-auto: ## [dev common] Destroy resources (auto-approves)
-	@$(MAKE) destroy-auto TARGET_TF_DIR=$(DEV_COMMON_TF_DIR) TF_CMD_ARGS="$(DEV_COMMON_TF_CMD_ARGS)"
 
 # Dev - hello-world Lambda
 # LAMBDA_IMAGE_URI must be passed for plan/apply/destroy if it's a required variable.
@@ -119,24 +107,15 @@ _DEFAULT_DEV_HW_IMAGE_URI_WITH_SPECIFIC_TAG := $(ECR_REGISTRY)/hello_world:$(DEV
 ACTUAL_DEV_HW_LAMBDA_IMAGE_URI := $(or $(LAMBDA_IMAGE_URI),$(_DEFAULT_DEV_HW_IMAGE_URI_WITH_SPECIFIC_TAG))
 DEV_HW_TF_CMD_ARGS := -var-file=../../$(ENVIRONMENTS_BASE_DIR)/dev/terraform.tfvars -var="image_uri=$(ACTUAL_DEV_HW_LAMBDA_IMAGE_URI)"
 
+dev-hello-world-console-test: ## [dev hello-world]
+	echo "var.aws_region" | terraform -chdir=$(DEV_HW_LAMBDA_TF_DIR) console -var-file=../../environments/dev/terraform.tfvars
 dev-hello-world-init: ## [dev hello-world] Initialize Terraform
-	@$(MAKE) init TARGET_TF_DIR=$(DEV_HW_LAMBDA_TF_DIR)
+	$(MAKE) init TARGET_TF_DIR=$(DEV_HW_LAMBDA_TF_DIR)
 dev-hello-world-validate: ## [dev hello-world] Validate Terraform
-	@$(MAKE) validate TARGET_TF_DIR=$(DEV_HW_LAMBDA_TF_DIR)
+	$(MAKE) validate TARGET_TF_DIR=$(DEV_HW_LAMBDA_TF_DIR)
 dev-hello-world-plan: ## [dev hello-world] Plan Terraform (Requires LAMBDA_IMAGE_URI if var is not defaulted)
-	@$(MAKE) plan TARGET_TF_DIR=$(DEV_HW_LAMBDA_TF_DIR) TF_CMD_ARGS="$(DEV_HW_TF_CMD_ARGS)"
+	$(MAKE) plan TARGET_TF_DIR=$(DEV_HW_LAMBDA_TF_DIR) TF_CMD_ARGS="$(DEV_HW_TF_CMD_ARGS)"
 dev-hello-world-apply: ## [dev hello-world] Apply Terraform (Requires LAMBDA_IMAGE_URI, prompts)
-	@$(MAKE) apply TARGET_TF_DIR=$(DEV_HW_LAMBDA_TF_DIR) TF_CMD_ARGS="$(DEV_HW_TF_CMD_ARGS)"
-dev-hello-world-apply-auto: ## [dev hello-world] Apply Terraform (Requires LAMBDA_IMAGE_URI, auto-approves)
-	@$(MAKE) apply-auto TARGET_TF_DIR=$(DEV_HW_LAMBDA_TF_DIR) TF_CMD_ARGS="$(DEV_HW_TF_CMD_ARGS)"
+	$(MAKE) apply TARGET_TF_DIR=$(DEV_HW_LAMBDA_TF_DIR) TF_CMD_ARGS="$(DEV_HW_TF_CMD_ARGS)"
 dev-hello-world-destroy: ## [dev hello-world] Destroy resources (Requires LAMBDA_IMAGE_URI, prompts)
-	@$(MAKE) destroy TARGET_TF_DIR=$(DEV_HW_LAMBDA_TF_DIR) TF_CMD_ARGS="$(DEV_HW_TF_CMD_ARGS)"
-dev-hello-world-destroy-auto: ## [dev hello-world] Destroy resources (Requires LAMBDA_IMAGE_URI, auto-approves)
-	@$(MAKE) destroy-auto TARGET_TF_DIR=$(DEV_HW_LAMBDA_TF_DIR) TF_CMD_ARGS="$(DEV_HW_TF_CMD_ARGS)"
-
-# Add similar blocks for 'prod' environment or other lambdas as needed.
-# Example for another lambda 'my-api' in dev:
-# DEV_MYAPI_LAMBDA_TF_DIR := $(LAMBDAS_BASE_DIR)/my-api
-# DEV_MYAPI_TF_CMD_ARGS := -var-file=../../$(ENVIRONMENTS_BASE_DIR)/dev/terraform.tfvars -var="image_uri=$(LAMBDA_IMAGE_URI)"
-# dev-my-api-plan:
-#	@$(MAKE) plan TARGET_TF_DIR=$(DEV_MYAPI_LAMBDA_TF_DIR) TF_CMD_ARGS="$(DEV_MYAPI_TF_CMD_ARGS)"
+	$(MAKE) destroy TARGET_TF_DIR=$(DEV_HW_LAMBDA_TF_DIR) TF_CMD_ARGS="$(DEV_HW_TF_CMD_ARGS)"

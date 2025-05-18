@@ -55,3 +55,15 @@ variable "common_tags" {
     Environment = "dev"                 # Default environment tag
   }
 }
+
+variable "github_repository" {
+  description = "The GitHub repository (e.g., your-org/your-repo) allowed to assume this role."
+  type        = string
+}
+
+
+variable "aws_account_id" {
+  description = "AWS Account ID where the OIDC provider is located."
+  type        = string
+}
+
