@@ -76,7 +76,7 @@ jobs:
         id: tf_plan
         env:
           ENV: ${{ steps.set_env.outputs.DEPLOY_ENV }}
-          TF_BACKEND_S3_BUCKET: ${{ secrets.TF_BACKEND_S3_BUCKET_NAME }}
+          TF_BACKEND_S3_BUCKET: ${{ secrets.TF_BACKEND_S3_BUCKET }}
         run: make lambda-plan APP_NAME=${{ env.APP_NAME }}
         working-directory: ${{ env.TF_WORKING_DIR }}
 
@@ -123,7 +123,7 @@ jobs:
       - name: Terraform Apply for ${{ env.APP_NAME }} Lambda
         env:
           ENV: ${{ needs.plan_apps.outputs.environment_name }}
-          TF_BACKEND_S3_BUCKET: ${{ secrets.TF_BACKEND_S3_BUCKET_NAME }}
+          TF_BACKEND_S3_BUCKET: ${{ secrets.TF_BACKEND_S3_BUCKET }}
         run: |
           ls -l lambdas/${{ env.APP_NAME }}
           make lambda-apply APP_NAME=${{ env.APP_NAME }}

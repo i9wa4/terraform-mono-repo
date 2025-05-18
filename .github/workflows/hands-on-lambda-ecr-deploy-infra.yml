@@ -67,7 +67,7 @@ jobs:
         id: plan
         env:
           ENV: ${{ github.event.inputs.environment || 'dev' }} # Default to 'dev' for PRs if not specified
-          GITHUB_REPOSITORY: ${{ github.repository }}
+          TF_BACKEND_S3_BUCKET: ${{ secrets.TF_BACKEND_S3_BUCKET }}
         run: |
           make common-plan
         working-directory: ${{ env.TF_WORKING_DIR }}
@@ -108,7 +108,7 @@ jobs:
       - name: Terraform Apply
         env:
           ENV: ${{ needs.plan_apps.outputs.environment_name }}
-          TF_BACKEND_S3_BUCKET: ${{ secrets.TF_BACKEND_S3_BUCKET_NAME }}
+          TF_BACKEND_S3_BUCKET: ${{ secrets.TF_BACKEND_S3_BUCKET }}
         run: |
           ls -l ${{ env.TF_WORKING_DIR }}
           make common-apply
