@@ -134,9 +134,29 @@ dev-hello-world-init: ## [dev hello-world] Initialize Terraform
 	$(MAKE) init TARGET_TF_DIR=$(DEV_HW_LAMBDA_TF_DIR)
 dev-hello-world-validate: ## [dev hello-world] Validate Terraform
 	$(MAKE) validate TARGET_TF_DIR=$(DEV_HW_LAMBDA_TF_DIR)
-dev-hello-world-plan: ## [dev hello-world] Plan Terraform (Requires LAMBDA_IMAGE_URI if var is not defaulted)
+dev-hello-world-plan: ## [dev hello-world] Plan Terraform
 	$(MAKE) plan TARGET_TF_DIR=$(DEV_HW_LAMBDA_TF_DIR) TF_CMD_ARGS="$(DEV_HW_TF_CMD_ARGS)"
-dev-hello-world-apply: ## [dev hello-world] Apply Terraform (Requires LAMBDA_IMAGE_URI, prompts)
+
+# Internal target to apply ECR repository, IAM, and CloudWatch prerequisites for hello-world
+.PHONY: _dev-hello-world-apply-prereqs
+_dev-hello-world-apply-prereqs:
+	@echo "Applying ECR repository, IAM, and CloudWatch prerequisites for hello-world..."
+	$(MAKE) apply TARGET_TF_DIR=$(DEV_HW_LAMBDA_TF_DIR) TF_CMD_ARGS='$(strip $(DEV_HW_TF_CMD_ARGS)) \
+		-target=aws_ecr_repository.lambda_ecr_repo \
+		-target=aws_iam_role.lambda_exec_role \
+		-target=aws_iam_policy.lambda_exec_policy \
+		-target=aws_iam_role_policy_attachment.lambda_exec_policy_attachment \
+		-target=aws_cloudwatch_log_group.lambda_log_group'
+
+# Internal target to build and push the hello-world image
+.PHONY: _dev-hello-world-push-image
+_dev-hello-world-push-image:
+	@echo "Building and pushing hello-world image $(ECR_REGISTRY)/hello-world:$(DEV_HW_IMAGE_TAG)..."
+	$(MAKE) lambda-build-push LAMBDA=hello-world IMAGE_TAG=$(DEV_HW_IMAGE_TAG)
+
+dev-hello-world-apply: _dev-hello-world-apply-prereqs _dev-hello-world-push-image ## [dev hello-world] Apply Terraform (Creates ECR/IAM, builds/pushes image, then applies Lambda)
+	@echo "Applying all hello-world resources (including Lambda function)..."
 	$(MAKE) apply TARGET_TF_DIR=$(DEV_HW_LAMBDA_TF_DIR) TF_CMD_ARGS="$(DEV_HW_TF_CMD_ARGS)"
-dev-hello-world-destroy: ## [dev hello-world] Destroy resources (Requires LAMBDA_IMAGE_URI, prompts)
+
+dev-hello-world-destroy: ## [dev hello-world] Destroy resources
 	$(MAKE) destroy TARGET_TF_DIR=$(DEV_HW_LAMBDA_TF_DIR) TF_CMD_ARGS="$(DEV_HW_TF_CMD_ARGS)"
