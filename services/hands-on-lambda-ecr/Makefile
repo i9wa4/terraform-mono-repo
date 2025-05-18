@@ -4,6 +4,9 @@ SHELL := /usr/bin/env bash
 .SHELLFLAGS := -o errexit -o nounset -o pipefail -o posix -c
 .DEFAULT_GOAL := help
 
+# --- Backend Configuration ---
+TERRAFORM_BACKEND_S3_BUCKET ?= i9wa4-terraform # Default S3 bucket for Terraform state
+
 # all targets are phony
 .PHONY: $(shell grep -E '^[a-zA-Z_-]+:' $(MAKEFILE_LIST) | sed 's/:.*//')
 
@@ -14,7 +17,9 @@ help:  ## print this help
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 init:
-	terraform -chdir=$(TARGET_TF_DIR) init -reconfigure -backend-config="key=hands-on-lambda-ecr/$(TARGET_TF_DIR)/terraform.tfstate"
+	terraform -chdir=$(TARGET_TF_DIR) init -reconfigure \
+		-backend-config="bucket=$(TERRAFORM_BACKEND_S3_BUCKET)" \
+		-backend-config="key=hands-on-lambda-ecr/$(TARGET_TF_DIR)/terraform.tfstate"
 
 validate:
 	terraform -chdir=$(TARGET_TF_DIR) validate
