@@ -18,7 +18,7 @@ help:  ## print this help
 # These are base paths and default values.
 # Dedicated targets will often override ENV and LAMBDA.
 ENV ?= dev
-LAMBDA ?= hello-world # Default lambda name for targets like lambda-build-push if not specified
+LAMBDA ?= hello_world # Default lambda name for targets like lambda-build-push if not specified
 LAMBDAS_BASE_DIR := lambdas
 COMMON_DIR := terraform
 ENVIRONMENTS_BASE_DIR := environments
@@ -103,7 +103,7 @@ dev-common-destroy-auto: ## [dev common] Destroy resources (auto-approves)
 # Dev - hello-world Lambda
 # LAMBDA_IMAGE_URI must be passed for plan/apply/destroy if it's a required variable.
 # Example: make dev-hello-world-apply LAMBDA_IMAGE_URI="your-image-uri"
-DEV_HW_LAMBDA_TF_DIR := $(LAMBDAS_BASE_DIR)/hello-world
+DEV_HW_LAMBDA_TF_DIR := $(LAMBDAS_BASE_DIR)/hello_world
 DEV_HW_TF_CMD_ARGS := -var-file=../../$(ENVIRONMENTS_BASE_DIR)/dev/terraform.tfvars -var="image_uri=$(LAMBDA_IMAGE_URI)"
 
 dev-hello-world-init: ## [dev hello-world] Initialize Terraform
