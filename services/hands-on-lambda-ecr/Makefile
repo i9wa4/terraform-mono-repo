@@ -36,7 +36,7 @@ plan-destroy: validate
 	terraform -chdir=$(TARGET_TF_DIR) plan -destroy $(TF_CMD_ARGS)
 
 destroy: plan-destroy
-	terraform -chdir=$(TARGET_TF_DIR) destroy -auto-approv e$(TF_CMD_ARGS)
+	terraform -chdir=$(TARGET_TF_DIR) destroy -auto-approve $(TF_CMD_ARGS)
 
 # Dev - Common Resources
 DEV_COMMON_TF_DIR := $(COMMON_DIR)
@@ -45,14 +45,16 @@ DEV_COMMON_TF_CMD_ARGS := -var-file=../$(ENVIRONMENTS_BASE_DIR)/dev/terraform.tf
 # Attempt to fetch AWS Account ID and Region from the common Terraform configuration outputs.
 # These commands will only succeed if 'terraform apply' has been run for the common configuration.
 # Fallbacks are provided if these commands fail or return empty.
-TF_OUTPUT_AWS_ACCOUNT_ID := $(strip $(shell terraform -chdir=$(DEV_COMMON_TF_DIR) $(DEV_COMMON_TF_CMD_ARGS) output -raw aws_account_id 2>/dev/null))
-TF_OUTPUT_AWS_REGION := $(strip $(shell terraform -chdir=$(DEV_COMMON_TF_DIR) $(DEV_COMMON_TF_CMD_ARGS) output -raw aws_region 2>/dev/null))
+# Note: Removed $(DEV_COMMON_TF_CMD_ARGS) from terraform output calls as it's generally not needed for 'output' and might cause issues.
+TF_OUTPUT_AWS_ACCOUNT_ID := $(strip $(shell terraform -chdir=$(DEV_COMMON_TF_DIR) output -raw aws_account_id 2>/dev/null))
+TF_OUTPUT_AWS_REGION := $(strip $(shell terraform -chdir=$(DEV_COMMON_TF_DIR) output -raw aws_region 2>/dev/null))
 
 AWS_REGION := $(TF_OUTPUT_AWS_REGION)
 ECR_AWS_ACCOUNT_ID := $(TF_OUTPUT_AWS_ACCOUNT_ID)
 
 # Docker image details
-ECR_REGISTRY ?= $(ECR_AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com
+# Ensure AWS_REGION and ECR_AWS_ACCOUNT_ID have fallbacks if TF_OUTPUT_... are empty (e.g., before first common apply)
+ECR_REGISTRY ?= $(if $(ECR_AWS_ACCOUNT_ID),$(ECR_AWS_ACCOUNT_ID),YOUR_AWS_ACCOUNT_ID).dkr.ecr.$(if $(AWS_REGION),$(AWS_REGION),YOUR_AWS_REGION).amazonaws.com
 _IMAGE_TAG_FROM_GIT := $(strip $(shell git rev-parse --short HEAD))
 IMAGE_TAG ?= $(_IMAGE_TAG_FROM_GIT)
 DEFAULT_LAMBDA_IMAGE_URI := $(ECR_REGISTRY)/$(LAMBDA):$(IMAGE_TAG) # General default, used if specific lambda doesn't override.
@@ -96,7 +98,7 @@ _HELLO_WORLD_DIR_COMMIT_HASH := $(strip $(shell git log -1 --format=%h -- $(LAMB
 DEV_HW_IMAGE_TAG := $(if $(_HELLO_WORLD_DIR_COMMIT_HASH),$(_HELLO_WORLD_DIR_COMMIT_HASH),$(IMAGE_TAG)) # Fallback to global IMAGE_TAG.
 
 # Define the expected ECR repository name for hello-world, matching Terraform's local.effective_function_name.
-_EXPECTED_HW_ECR_REPO_NAME := hands-on-lambda-ecr-hello-world
+_EXPECTED_HW_ECR_REPO_NAME := hands-on-lambda-ecr-dev-hello-world
 
 # Construct the default image URI for hello-world using its specific tag and correct ECR repo name.
 _DEFAULT_DEV_HW_IMAGE_URI_WITH_SPECIFIC_TAG := $(ECR_REGISTRY)/$(_EXPECTED_HW_ECR_REPO_NAME):$(DEV_HW_IMAGE_TAG)
