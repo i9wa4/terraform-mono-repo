@@ -15,7 +15,7 @@ help:  ## print this help
 # Variables
 #
 # Required for backend
-BACKEND_S3_BUCKET ?= i9wa4-terraform
+TF_BACKEND_S3_BUCKET ?= "$${TF_BACKEND_S3_BUCKET}"
 PROJECT_NAME ?= hands-on-lambda-ecr
 AWS_REGION ?= ap-northeast-1
 
@@ -49,7 +49,7 @@ hello-world-apply: ## [hello-world] terraform apply
 init:
 	terraform -chdir=$(TARGET_TF_DIR) init -reconfigure \
 		-backend-config="region=$(AWS_REGION)" \
-		-backend-config="bucket=$(BACKEND_S3_BUCKET)" \
+		-backend-config="bucket=$(TF_BACKEND_S3_BUCKET)" \
 		-backend-config="key=$(PROJECT_NAME)/$(TARGET_TF_DIR)/terraform.tfstate"
 
 validate: init
