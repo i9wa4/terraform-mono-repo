@@ -1,7 +1,6 @@
-# Makefile to manage Terraform deployments for individual Lambda functions and CI/CD roles
-# This Makefile is intended to be in services/hands-on-lambda-ecr/
-
+# MAKEFLAGS += --warn-undefined-variables
 SHELL := /usr/bin/env bash
+# .SHELLFLAGS := -o verbose -o xtrace -o errexit -o nounset -o pipefail -o posix -c
 .SHELLFLAGS := -o errexit -o nounset -o pipefail -o posix -c
 .DEFAULT_GOAL := help
 
@@ -9,14 +8,10 @@ SHELL := /usr/bin/env bash
 .PHONY: $(grep -E '^[a-zA-Z_-]+:' $(MAKEFILE_LIST) | sed 's/://')
 
 help:  ## print this help
-	@echo 'Usage: make <target>'
+	@echo 'Usage: make [target]'
 	@echo ''
-	@echo 'Example targets:'
-	@echo '  make dev-common-plan'
-	@echo '  make dev-hello-world-apply LAMBDA_IMAGE_URI=123.dkr.ecr.region.amazonaws.com/hello-world:latest'
-	@echo ''
-	@echo 'Available targets:'
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z0-9_-]+:.*?## / {printf "\033[36m%-40s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST) | grep -v '\[Internal\]'
+	@echo 'Targets:'
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 
 # --- Configuration ---
