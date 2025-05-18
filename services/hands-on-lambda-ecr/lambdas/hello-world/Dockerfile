@@ -3,7 +3,7 @@
 FROM public.ecr.aws/lambda/python:3.13
 
 # Lambdaハンドラ関数コードをコピーします
-COPY app.py ${LAMBDA_TASK_ROOT}/
+COPY app/app.py ${LAMBDA_TASK_ROOT}/
 
 # requirementsファイルをコピーします
 COPY requirements.txt ${LAMBDA_TASK_ROOT}/

@@ -89,12 +89,12 @@ lambda-ecr-login: ## Log in to AWS ECR (uses ECR_REGISTRY, AWS_REGION)
 	aws ecr get-login-password --region $(AWS_REGION) | docker login --username AWS --password-stdin $(ECR_REGISTRY)
 
 lambda-build-push: lambda-ecr-login ## Build and push Docker image for a lambda to ECR. Vars: LAMBDA, ECR_REGISTRY, IMAGE_TAG
-	$(eval _CURRENT_LAMBDA_APP_DIR := $(LAMBDAS_BASE_DIR)/$(LAMBDA)/app)
+	$(eval _LAMBDA_ROOT_DIR := $(LAMBDAS_BASE_DIR)/$(LAMBDA))
 	$(eval _CURRENT_LAMBDA_IMAGE_URI := $(ECR_REGISTRY)/$(LAMBDA):$(IMAGE_TAG))
-	@echo "Building and pushing Docker image for lambda: $(LAMBDA) from $(_CURRENT_LAMBDA_APP_DIR)"
+	@echo "Building and pushing Docker image for lambda: $(LAMBDA) from build context $(_LAMBDA_ROOT_DIR)"
 	@echo "Image: $(_CURRENT_LAMBDA_IMAGE_URI)"
-	@if [ ! -d "$(_CURRENT_LAMBDA_APP_DIR)" ]; then echo "Error: Lambda app directory '$(_CURRENT_LAMBDA_APP_DIR)' does not exist. Create it with a Dockerfile."; exit 1; fi
-	docker build -t $(_CURRENT_LAMBDA_IMAGE_URI) $(_CURRENT_LAMBDA_APP_DIR) --platform=linux/arm64 --provenance=false
+	@if [ ! -f "$(_LAMBDA_ROOT_DIR)/Dockerfile" ]; then echo "Error: Dockerfile not found in '$(_LAMBDA_ROOT_DIR)'."; exit 1; fi
+	docker build -t $(_CURRENT_LAMBDA_IMAGE_URI) $(_LAMBDA_ROOT_DIR) --platform=linux/arm64 --provenance=false
 	docker push $(_CURRENT_LAMBDA_IMAGE_URI)
 
 
