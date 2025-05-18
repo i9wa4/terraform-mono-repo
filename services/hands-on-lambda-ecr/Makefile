@@ -5,6 +5,15 @@ SHELL := /usr/bin/env bash
 .SHELLFLAGS := -o errexit -o nounset -o pipefail -o posix -c
 .DEFAULT_GOAL := help
 
+# all targets are phony
+.PHONY: $(grep -E '^[a-zA-Z_-]+:' $(MAKEFILE_LIST) | sed 's/://')
+
+help:  ## print this help
+	@echo 'Usage: make [target]'
+	@echo ''
+	@echo 'Targets:'
+	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
 # --- Configuration ---
 # Default environment and lambda if not specified.
 # Override by passing arguments: make plan lambda=my_example_lambda env=dev
@@ -37,35 +46,6 @@ LAMBDA_IMAGE_URI ?= $(ECR_REGISTRY)/$(LAMBDA):$(IMAGE_TAG) # Default constructio
 
 # AWS Region - ensure this is set in your environment or AWS config
 AWS_REGION ?= ap-northeast-1
-
-# --- Helper Targets ---
-.PHONY: help
-help:
-	@echo "Usage: make <target> [lambda=<lambda_name>] [env=<environment_name>] [LAMBDA_IMAGE_URI=<image_uri>] [component=lambda|cicd]"
-	@echo ""
-	@echo "Common Targets (specify component=lambda or component=cicd, lambda=... if component=lambda):"
-	@echo "  init        Initialize Terraform for the specified component."
-	@echo "  validate    Validate Terraform configuration."
-	@echo "  plan        Create an execution plan."
-	@echo "  apply       Apply the changes (prompts for approval)."
-	@echo "  apply-auto  Apply the changes (auto-approves)."
-	@echo "  destroy     Destroy resources (prompts for approval)."
-	@echo "  destroy-auto Destroy resources (auto-approves)."
-	@echo ""
-	@echo "Lambda Specific Targets (component=lambda is implicit):"
-	@echo "  lambda-ecr-login   Login to ECR."
-	@echo "  lambda-build-push  Build and push Docker image for the specified lambda."
-	@echo ""
-	@echo "Arguments:"
-	@echo "  lambda      Name of the lambda function directory under '$(LAMBDAS_BASE_DIR)/'. Default: $(LAMBDA)"
-	@echo "  env         Environment name (e.g., dev, prod). Default: $(ENV)"
-	@echo "  component   'lambda' or 'cicd'. Default: lambda"
-	@echo "  LAMBDA_IMAGE_URI Image URI for the lambda function. Default: $(LAMBDA_IMAGE_URI)"
-	@echo ""
-	@echo "Examples:"
-	@echo "  make plan lambda=my_example_lambda env=dev"
-	@echo "  make apply lambda=my_example_lambda env=dev LAMBDA_IMAGE_URI=$(ECR_REGISTRY)/my_example_lambda:v1.2.3"
-	@echo "  make plan component=cicd env=dev"
 
 # --- Pre-flight Checks ---
 check_lambda_params:
