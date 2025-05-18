@@ -28,9 +28,9 @@ variable "github_repository" {
 variable "common_tags" {
   description = "Common tags to apply to all resources."
   type        = map(string)
-  default     = {
-    Project     = "hands-on-lambda-ecr"
-    ManagedBy   = "Terraform"
+  default = {
+    Project   = "hands-on-lambda-ecr"
+    ManagedBy = "Terraform"
     # Environment = "common" # This can be overridden by environment-specific .tfvars
   }
 }

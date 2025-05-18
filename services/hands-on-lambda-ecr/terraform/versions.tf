@@ -9,9 +9,9 @@ terraform {
   }
 
   backend "s3" {
-    bucket  = "i9wa4-terraform" # Replace with your S3 bucket name
+    bucket  = "i9wa4-terraform"                                 # Replace with your S3 bucket name
     key     = "hands-on-lambda-ecr/terraform/terraform.tfstate" # Unique key for CI/CD state
-    region  = "ap-northeast-1"  # Replace with your S3 bucket region
+    region  = "ap-northeast-1"                                  # Replace with your S3 bucket region
     encrypt = true
   }
 }
