@@ -149,8 +149,9 @@ _dev-hello-world-apply-prereqs:
 
 # Internal target to build and push the hello-world image
 _dev-hello-world-push-image:
-	@echo "Building and pushing hello-world image $(ECR_REGISTRY)/hello-world:$(DEV_HW_IMAGE_TAG)..."
-	$(MAKE) lambda-build-push LAMBDA=hello-world IMAGE_TAG=$(DEV_HW_IMAGE_TAG)
+	$(eval _EXPECTED_ECR_REPO_NAME := hands-on-lambda-ecr-dev-hello-world) # Matches terraform's local.effective_function_name
+	@echo "Building and pushing hello-world image $(ECR_REGISTRY)/$(_EXPECTED_ECR_REPO_NAME):$(DEV_HW_IMAGE_TAG)..."
+	$(MAKE) lambda-build-push LAMBDA=$(_EXPECTED_ECR_REPO_NAME) IMAGE_TAG=$(DEV_HW_IMAGE_TAG)
 
 dev-hello-world-apply: _dev-hello-world-apply-prereqs _dev-hello-world-push-image ## [dev hello-world] Apply Terraform (Creates ECR/IAM, builds/pushes image, then applies Lambda)
 	@echo "Applying all hello-world resources (including Lambda function)..."
