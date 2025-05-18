@@ -2,13 +2,6 @@ SHELL := /usr/bin/env bash
 .SHELLFLAGS := -o errexit -o nounset -o pipefail -o posix -c
 .DEFAULT_GOAL := help
 
-# --- Configuration ---
-TERRAFORM_BACKEND_S3_BUCKET ?= i9wa4-terraform
-ENV ?= dev
-COMMON_DIR := terraform
-ENVIRONMENTS_BASE_DIR := environments
-
-
 # all targets are phony
 .PHONY: $(shell grep -E '^[a-zA-Z_-]+:' $(MAKEFILE_LIST) | sed 's/:.*//')
 
@@ -38,95 +31,56 @@ plan-destroy: validate
 destroy: plan-destroy
 	terraform -chdir=$(TARGET_TF_DIR) destroy -auto-approve $(TF_CMD_ARGS)
 
-# Dev - Common Resources
-DEV_COMMON_TF_DIR := $(COMMON_DIR)
-DEV_COMMON_TF_CMD_ARGS := -var-file=../$(ENVIRONMENTS_BASE_DIR)/dev/terraform.tfvars
+ecr-login:
+	aws ecr get-login-password --region $(AWS_REGION) | docker login --username AWS --password-stdin $(ECR_REGISTRY)
 
-# Attempt to fetch AWS Account ID and Region from the common Terraform configuration outputs.
-# These commands will only succeed if 'terraform apply' has been run for the common configuration.
-# Fallbacks are provided if these commands fail or return empty.
-# Note: Removed $(DEV_COMMON_TF_CMD_ARGS) from terraform output calls as it's generally not needed for 'output' and might cause issues.
-TF_OUTPUT_AWS_ACCOUNT_ID := $(strip $(shell terraform -chdir=$(DEV_COMMON_TF_DIR) output -raw aws_account_id 2>/dev/null))
-TF_OUTPUT_AWS_REGION := $(strip $(shell terraform -chdir=$(DEV_COMMON_TF_DIR) output -raw aws_region 2>/dev/null))
+ecr-build-push: ecr-login
+	docker build -t $(ECR_IMAGE_URI) $(APP_ROOT_DIR) --platform=linux/arm64 --provenance=false
+	docker push $(ECR_IMAGE_URI)
 
+
+# --- Configuration ---
+TERRAFORM_BACKEND_S3_BUCKET ?= i9wa4-terraform
+ENV ?= dev
+COMMON_DIR := terraform
+ENVIRONMENTS_BASE_DIR := environments
+COMMON_TF_DIR := $(COMMON_DIR)
+COMMON_TF_CMD_ARGS := '-var-file=../$(ENVIRONMENTS_BASE_DIR)/$(ENV)/terraform.tfvars'
+TF_OUTPUT_AWS_ACCOUNT_ID := $(strip $(shell terraform -chdir=$(COMMON_TF_DIR) output -raw aws_account_id 2>/dev/null))
+TF_OUTPUT_AWS_REGION := $(strip $(shell terraform -chdir=$(COMMON_TF_DIR) output -raw aws_region 2>/dev/null))
 AWS_REGION := $(TF_OUTPUT_AWS_REGION)
 ECR_AWS_ACCOUNT_ID := $(TF_OUTPUT_AWS_ACCOUNT_ID)
+ECR_REGISTRY ?= $(ECR_AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com
 
-# Docker image details
-# Ensure AWS_REGION and ECR_AWS_ACCOUNT_ID have fallbacks if TF_OUTPUT_... are empty (e.g., before first common apply)
-ECR_REGISTRY ?= $(if $(ECR_AWS_ACCOUNT_ID),$(ECR_AWS_ACCOUNT_ID),YOUR_AWS_ACCOUNT_ID).dkr.ecr.$(if $(AWS_REGION),$(AWS_REGION),YOUR_AWS_REGION).amazonaws.com
-# Ensure IMAGE_TAG is clean of all whitespace.
-_IMAGE_TAG_FROM_GIT := $(shell git rev-parse --short HEAD | tr -d '[:space:]')
-IMAGE_TAG ?= $(_IMAGE_TAG_FROM_GIT)
-DEFAULT_LAMBDA_IMAGE_URI := $(ECR_REGISTRY)/$(LAMBDA):$(IMAGE_TAG) # General default, used if specific lambda doesn't override.
+common-plan: ## [common] Plan Terraform
+	$(MAKE) plan TARGET_TF_DIR=$(COMMON_TF_DIR) TF_CMD_ARGS=$(COMMON_TF_CMD_ARGS)
 
-dev-common-plan: ## [dev common] Plan Terraform
-	$(MAKE) plan TARGET_TF_DIR=$(DEV_COMMON_TF_DIR) TF_CMD_ARGS="$(DEV_COMMON_TF_CMD_ARGS)"
-
-dev-common-apply: ## [dev common] Apply Terraform (prompts)
-	$(MAKE) apply TARGET_TF_DIR=$(DEV_COMMON_TF_DIR) TF_CMD_ARGS="$(DEV_COMMON_TF_CMD_ARGS)"
+common-apply: ## [common] Apply Terraform (prompts)
+	$(MAKE) apply TARGET_TF_DIR=$(COMMON_TF_DIR) TF_CMD_ARGS=$(COMMON_TF_CMD_ARGS)
 
 
 # --- Lambda Specific Docker Targets ---
-lambda-ecr-login:
-	@echo "Logging in to ECR registry $(ECR_REGISTRY) in region $(AWS_REGION)"
-	aws ecr get-login-password --region $(AWS_REGION) | docker login --username AWS --password-stdin $(ECR_REGISTRY)
+HW_LAMBDA_ROOT_DIR := lambdas/hello-world
+HW_ECR_REPO := hands-on-lambda-ecr-$(ENV)-hello-world
+HW_IMAGE_TAG := $(shell git log -1 --format=%h -- $(HW_LAMBDA_ROOT_DIR) 2>/dev/null | tr -d '[:space:]')
+HW_ECR_IMAGE_URI := $(ECR_REGISTRY)/$(HW_ECR_REPO):$(HW_IMAGE_TAG)
+HW_TF_CMD_ARGS := '-var-file=../../$(ENVIRONMENTS_BASE_DIR)/$(ENV)/terraform.tfvars -var='image_uri=$(HW_ECR_IMAGE_URI)''
 
-lambda-build-push: lambda-ecr-login
-	$(eval _LAMBDA_ROOT_DIR := $(LAMBDAS_BASE_DIR)/$(LAMBDA_CODE_DIR_SUFFIX))
-	$(eval _CURRENT_LAMBDA_IMAGE_URI := $(ECR_REGISTRY)/$(LAMBDA_ECR_NAME):$(IMAGE_TAG))
-	@echo "Building and pushing Docker image for lambda source $(LAMBDA_CODE_DIR_SUFFIX) to ECR repo $(LAMBDA_ECR_NAME) from build context $(_LAMBDA_ROOT_DIR)"
-	@echo "Image: $(_CURRENT_LAMBDA_IMAGE_URI)"
-	@if [ ! -f "$(_LAMBDA_ROOT_DIR)/Dockerfile" ]; then echo "Error: Dockerfile not found in '$(_LAMBDA_ROOT_DIR)'."; exit 1; fi
-	docker build -t $(_CURRENT_LAMBDA_IMAGE_URI) $(_LAMBDA_ROOT_DIR) --platform=linux/arm64 --provenance=false
-	docker push $(_CURRENT_LAMBDA_IMAGE_URI)
+lambda-plan:
+	$(MAKE) plan \
+		TARGET_TF_DIR=lambdas/$(APP_NAME) \
+		TF_CMD_ARGS='-var-file=../../$(ENVIRONMENTS_BASE_DIR)/$(ENV)/terraform.tfvars -var='image_uri=$(ECR_REGISTRY)/hands-on-lambda-ecr-$(ENV)-$(APP_NAME):$(shell git log -1 --format=%h -- lambdas/$(APP_NAME) 2>/dev/null | tr -d '[:space:]')''
 
+lambda-apply:
+	$(MAKE) ecr-build-push \
+		ECR_IMAGE_URI=$(ECR_REGISTRY)/hands-on-lambda-ecr-$(ENV)-$(APP_NAME):$(shell git log -1 --format=%h -- lambdas/$(APP_NAME) 2>/dev/null | tr -d '[:space:]') \
+		APP_ROOT_DIR=lambdas/$(APP_NAME)
+	$(MAKE) apply \
+		TARGET_TF_DIR=lambdas/$(APP_NAME) \
+		TF_CMD_ARGS='-var-file=../../$(ENVIRONMENTS_BASE_DIR)/$(ENV)/terraform.tfvars -var='image_uri=$(ECR_REGISTRY)/hands-on-lambda-ecr-$(ENV)-$(APP_NAME):$(shell git log -1 --format=%h -- lambdas/$(APP_NAME) 2>/dev/null | tr -d '[:space:]')''
 
-LAMBDA ?= hello-world # Default lambda code directory suffix.
-LAMBDAS_BASE_DIR := lambdas
+hello-world-plan: ## [hello-world] Plan Terraform
+	$(MAKE) lambda-plan APP_NAME=hello-world
 
-
-# Note: AWS_REGION is now primarily set using Terraform output from common config, with fallbacks.
-# Note: _AWS_ACCOUNT_ID_FROM_TF is no longer needed as we use TF_OUTPUT_AWS_ACCOUNT_ID.
-# Note: Docker image details are now defined earlier, using TF outputs.
-
-
-# --- Dev - hello-world Lambda ---
-DEV_HW_LAMBDA_TF_DIR := $(LAMBDAS_BASE_DIR)/hello-world
-
-# Calculate image tag based on the latest commit in the hello-world lambda's directory.
-_HELLO_WORLD_DIR_COMMIT_HASH := $(shell git log -1 --format=%h -- $(LAMBDAS_BASE_DIR)/hello-world 2>/dev/null | tr -d '[:space:]')
-DEV_HW_IMAGE_TAG := $(if $(_HELLO_WORLD_DIR_COMMIT_HASH),$(_HELLO_WORLD_DIR_COMMIT_HASH),$(IMAGE_TAG)) # Fallback to global IMAGE_TAG.
-
-# Define the expected ECR repository name for hello-world, matching Terraform's local.effective_function_name.
-_EXPECTED_HW_ECR_REPO_NAME := hands-on-lambda-ecr-dev-hello-world
-
-# Construct the default image URI for hello-world using its specific tag and correct ECR repo name.
-_DEFAULT_DEV_HW_IMAGE_URI_WITH_SPECIFIC_TAG := $(ECR_REGISTRY)/$(_EXPECTED_HW_ECR_REPO_NAME):$(DEV_HW_IMAGE_TAG)
-
-# Use LAMBDA_IMAGE_URI if provided by the user, otherwise use the hello-world specific default URI.
-_ACTUAL_DEV_HW_LAMBDA_IMAGE_URI_RAW := $(or $(LAMBDA_IMAGE_URI),$(_DEFAULT_DEV_HW_IMAGE_URI_WITH_SPECIFIC_TAG))
-# Strip whitespace to prevent malformed arguments.
-ACTUAL_DEV_HW_LAMBDA_IMAGE_URI := $(strip $(_ACTUAL_DEV_HW_LAMBDA_IMAGE_URI_RAW)) # Note: ECR_REGISTRY must be correctly set.
-DEV_HW_TF_CMD_ARGS := -var-file=../../$(ENVIRONMENTS_BASE_DIR)/dev/terraform.tfvars -var='image_uri=$(strip $(ACTUAL_DEV_HW_LAMBDA_IMAGE_URI))'
-
-dev-hello-world-plan: ## [dev hello-world] Plan Terraform
-	$(MAKE) plan TARGET_TF_DIR=$(DEV_HW_LAMBDA_TF_DIR) TF_CMD_ARGS="$(DEV_HW_TF_CMD_ARGS)"
-
-# Internal target to apply ECR repository, IAM, and CloudWatch prerequisites for hello-world
-_dev-hello-world-apply-prereqs:
-	@echo "Applying ECR repository, IAM, and CloudWatch prerequisites for hello-world..."
-	$(MAKE) apply TARGET_TF_DIR=$(DEV_HW_LAMBDA_TF_DIR) TF_CMD_ARGS="$(DEV_HW_TF_CMD_ARGS) \
-		-target=aws_ecr_repository.lambda_ecr_repo \
-		-target=aws_iam_role.lambda_exec_role \
-		-target=aws_iam_policy.lambda_exec_policy \
-		-target=aws_iam_role_policy_attachment.lambda_exec_policy_attachment \
-		-target=aws_cloudwatch_log_group.lambda_log_group"
-
-# Internal target to build and push the hello-world image
-_dev-hello-world-push-image:
-	@echo "Building and pushing hello-world image $(ECR_REGISTRY)/$(_EXPECTED_HW_ECR_REPO_NAME):$(DEV_HW_IMAGE_TAG)..."
-	$(MAKE) lambda-build-push LAMBDA_CODE_DIR_SUFFIX=hello-world LAMBDA_ECR_NAME=$(_EXPECTED_HW_ECR_REPO_NAME) IMAGE_TAG=$(DEV_HW_IMAGE_TAG)
-
-dev-hello-world-apply: _dev-hello-world-apply-prereqs _dev-hello-world-push-image ## [dev hello-world] Apply Terraform (Creates ECR/IAM, builds/pushes image, then applies Lambda)
-	$(MAKE) apply TARGET_TF_DIR=$(DEV_HW_LAMBDA_TF_DIR) TF_CMD_ARGS="$(DEV_HW_TF_CMD_ARGS)"
+hello-world-apply: hello-world-pre-apply ## [hello-world] Apply Terraform (prompts)
+	$(MAKE) lambda-apply APP_NAME=hello-world
