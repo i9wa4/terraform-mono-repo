@@ -1,13 +1,13 @@
-variable "environment" {
-  description = "The environment for the deployment (e.g., dev, staging, prod)."
-  type        = string
-  default     = "dev"
-}
-
 variable "project_name" {
   description = "The name of the project."
   type        = string
   default     = "hands-on-lambda-ecr"
+}
+
+variable "environment" {
+  description = "The environment for the deployment (e.g., dev, staging, prod)."
+  type        = string
+  default     = "dev"
 }
 
 variable "aws_region" {
@@ -20,21 +20,9 @@ variable "aws_account_id" {
   type        = string
 }
 
-variable "github_oidc_provider_url" {
-  description = "The URL of the GitHub OIDC provider (e.g., token.actions.githubusercontent.com)."
-  type        = string
-  default     = "token.actions.githubusercontent.com"
-}
-
 variable "github_repository" {
   description = "The GitHub repository (e.g., your-org/your-repo) allowed to assume this role."
   type        = string
-}
-
-variable "github_actions_role_name" {
-  description = "Name of the IAM role for GitHub Actions OIDC."
-  type        = string
-  default     = "hands-on-lambda-ecr"
 }
 
 variable "common_tags" {
@@ -46,3 +34,18 @@ variable "common_tags" {
     # Environment = "common" # This can be overridden by environment-specific .tfvars
   }
 }
+
+# --- Specific variables for this configuration ---
+
+variable "github_oidc_provider_url" {
+  description = "The URL of the GitHub OIDC provider (e.g., token.actions.githubusercontent.com)."
+  type        = string
+  default     = "token.actions.githubusercontent.com"
+}
+
+variable "github_actions_role_name" {
+  description = "Name of the IAM role for GitHub Actions OIDC."
+  type        = string
+  default     = "hands-on-lambda-ecr"
+}
+
