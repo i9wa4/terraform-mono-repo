@@ -1,0 +1,2 @@
+name: hands-on-lambda-ecr-deploy-infra
+run-name: ${{ github.event_name }} on ${{ github.ref_name }} by @${{ github.actor }}

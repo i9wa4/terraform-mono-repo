@@ -1,4 +1,4 @@
-name: hands-on-lambda-ecr-deploy
+name: hands-on-lambda-ecr-deploy-apps
 run-name: ${{ github.event_name }} on ${{ github.ref_name }} by @${{ github.actor }}
 
 on:
@@ -15,22 +15,19 @@ on:
 
 env:
   AWS_REGION: "ap-northeast-1"
-  ECR_REPOSITORY_BASE_NAME: "hands-on-lambda-ecr" # Base name, env suffix will be added
-  LAMBDA_APP_NAME: "hello-world" # Corresponds to APP_NAME in Makefile for hello-world lambda
-  TF_VERSION: "1.11.4" # Terraformのバージョンを固定 (例: "1.8.4")
+  ECR_REPOSITORY_BASE_NAME: "hands-on-lambda-ecr"
+  TF_VERSION: "1.11.4"
   TF_WORKING_DIR: "./services/hands-on-lambda-ecr"
-  # Ensure this secret is defined in your GitHub repository settings
-  TF_BACKEND_S3_BUCKET: ${{ secrets.TF_BACKEND_S3_BUCKET_NAME }} # Example: my-terraform-backend-bucket
+  TF_BACKEND_S3_BUCKET: ${{ secrets.TF_BACKEND_S3_BUCKET_NAME }}
 
 permissions:
   id-token: write
   contents: read
 
 jobs:
-  deploy_infrastructure: # Renamed from deploy_lambda, and provision_ecr_and_iam is removed
-    name: Deploy Infrastructure with Terraform
+  plan_apps:
+    name: Plan Apps
     runs-on: ubuntu-latest
-    # 'needs' clause removed
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -38,11 +35,10 @@ jobs:
       - name: Configure AWS credentials using OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.HANDS_ON_LAMBDA_ECR_ARN_IAM_OIDC }} # User might need to make this env-specific
+          role-to-assume: ${{ secrets.HANDS_ON_LAMBDA_ECR_TERRAFORM_IAM }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
-        id: login-ecr # This step is crucial for getting the ECR registry
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Setup Terraform
@@ -53,14 +49,32 @@ jobs:
       - name: Terraform Plan for Hello World Lambda
         env:
           ENV: ${{ github.event.inputs.environment }}
-          # AWS_ACCOUNT_ID is determined by Makefile from terraform output, ensure common infra is applied first if needed
-          # Or pass AWS_ACCOUNT_ID if known and static: AWS_ACCOUNT_ID: "your-aws-account-id"
         run: make hello-world-plan
         working-directory: ${{ env.TF_WORKING_DIR }}
+
+  apply_apps:
+    name: Apply Apps
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials using OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.HANDS_ON_LAMBDA_ECR_TERRAFORM_IAM }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
 
       - name: Terraform Apply for Hello World Lambda
         env:
           ENV: ${{ github.event.inputs.environment }}
-          # AWS_ACCOUNT_ID is determined by Makefile from terraform output
         run: make hello-world-apply
         working-directory: ${{ env.TF_WORKING_DIR }}
