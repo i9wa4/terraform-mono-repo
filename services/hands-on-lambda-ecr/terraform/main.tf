@@ -29,6 +29,11 @@ resource "aws_iam_role" "github_actions_oidc_role" {
       }
     ]
   })
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    ManagedBy   = "Terraform"
+  }
 }
 
 resource "aws_iam_role_policy_attachment" "github_actions_oidc_role_admin_attachment" {
