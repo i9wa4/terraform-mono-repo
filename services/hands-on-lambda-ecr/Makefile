@@ -39,7 +39,7 @@ ecr-build-push: ecr-login
 	docker push $(ECR_IMAGE_URI)
 
 
-# --- Configuration ---
+# Common
 TERRAFORM_BACKEND_S3_BUCKET ?= i9wa4-terraform
 ENV ?= dev
 COMMON_DIR := terraform
@@ -59,13 +59,7 @@ common-apply: ## [common] Apply Terraform (prompts)
 	$(MAKE) apply TARGET_TF_DIR=$(COMMON_TF_DIR) TF_CMD_ARGS=$(COMMON_TF_CMD_ARGS)
 
 
-# --- Lambda Specific Docker Targets ---
-HW_LAMBDA_ROOT_DIR := lambdas/hello-world
-HW_ECR_REPO := hands-on-lambda-ecr-$(ENV)-hello-world
-HW_IMAGE_TAG := $(shell git log -1 --format=%h -- $(HW_LAMBDA_ROOT_DIR) 2>/dev/null | tr -d '[:space:]')
-HW_ECR_IMAGE_URI := $(ECR_REGISTRY)/$(HW_ECR_REPO):$(HW_IMAGE_TAG)
-HW_TF_CMD_ARGS := '-var-file=../../$(ENVIRONMENTS_BASE_DIR)/$(ENV)/terraform.tfvars -var='image_uri=$(HW_ECR_IMAGE_URI)''
-
+# Lambda
 lambda-plan:
 	$(MAKE) plan \
 		TARGET_TF_DIR=lambdas/$(APP_NAME) \
