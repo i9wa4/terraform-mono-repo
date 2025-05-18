@@ -105,6 +105,7 @@ resource "aws_lambda_function" "this" {
   role          = aws_iam_role.lambda_exec_role.arn
   package_type  = "Image"
   image_uri     = var.image_uri
+  architectures = ["arm64"] # Specify the architecture to match the Docker build
 
   memory_size = var.lambda_memory_size != null ? var.lambda_memory_size : 256
   timeout     = var.lambda_timeout != null ? var.lambda_timeout : 30
