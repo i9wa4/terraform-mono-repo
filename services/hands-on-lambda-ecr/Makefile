@@ -5,7 +5,10 @@ SHELL := /usr/bin/env bash
 .DEFAULT_GOAL := help
 
 # --- Backend Configuration ---
-TERRAFORM_BACKEND_S3_BUCKET ?= i9wa4-terraform # Default S3 bucket for Terraform state
+# Capture environment variable or set default for the S3 bucket name.
+_TERRAFORM_BACKEND_S3_BUCKET_ENV_OR_DEFAULT ?= i9wa4-terraform
+# Strip any leading/trailing whitespace to prevent issues with backend configuration.
+TERRAFORM_BACKEND_S3_BUCKET := $(strip $(_TERRAFORM_BACKEND_S3_BUCKET_ENV_OR_DEFAULT))
 
 # all targets are phony
 .PHONY: $(shell grep -E '^[a-zA-Z_-]+:' $(MAKEFILE_LIST) | sed 's/:.*//')
