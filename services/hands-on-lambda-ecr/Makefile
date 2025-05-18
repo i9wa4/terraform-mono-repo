@@ -108,7 +108,7 @@ _DEFAULT_DEV_HW_IMAGE_URI_WITH_SPECIFIC_TAG := $(ECR_REGISTRY)/$(_EXPECTED_HW_EC
 _ACTUAL_DEV_HW_LAMBDA_IMAGE_URI_RAW := $(or $(LAMBDA_IMAGE_URI),$(_DEFAULT_DEV_HW_IMAGE_URI_WITH_SPECIFIC_TAG))
 # Strip whitespace to prevent malformed arguments.
 ACTUAL_DEV_HW_LAMBDA_IMAGE_URI := $(strip $(_ACTUAL_DEV_HW_LAMBDA_IMAGE_URI_RAW)) # Note: ECR_REGISTRY must be correctly set.
-DEV_HW_TF_CMD_ARGS := -var-file=../../$(ENVIRONMENTS_BASE_DIR)/dev/terraform.tfvars -var='image_uri=$(ACTUAL_DEV_HW_LAMBDA_IMAGE_URI)'
+DEV_HW_TF_CMD_ARGS := -var-file=../../$(ENVIRONMENTS_BASE_DIR)/dev/terraform.tfvars -var='image_uri=$(strip $(ACTUAL_DEV_HW_LAMBDA_IMAGE_URI))'
 
 dev-hello-world-plan: ## [dev hello-world] Plan Terraform
 	$(MAKE) plan TARGET_TF_DIR=$(DEV_HW_LAMBDA_TF_DIR) TF_CMD_ARGS="$(DEV_HW_TF_CMD_ARGS)"
