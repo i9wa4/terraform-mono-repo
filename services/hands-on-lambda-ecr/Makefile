@@ -2,10 +2,12 @@ SHELL := /usr/bin/env bash
 .SHELLFLAGS := -o errexit -o nounset -o pipefail -o posix -c
 .DEFAULT_GOAL := help
 
-# --- Backend Configuration ---
-# Capture environment variable or set default for the S3 bucket name, then strip whitespace.
-_TERRAFORM_BACKEND_S3_BUCKET_ENV_OR_DEFAULT ?= i9wa4-terraform
-TERRAFORM_BACKEND_S3_BUCKET := $(strip $(_TERRAFORM_BACKEND_S3_BUCKET_ENV_OR_DEFAULT))
+# --- Configuration ---
+TERRAFORM_BACKEND_S3_BUCKET ?= i9wa4-terraform
+ENV ?= dev
+COMMON_DIR := terraform
+ENVIRONMENTS_BASE_DIR := environments
+
 
 # all targets are phony
 .PHONY: $(shell grep -E '^[a-zA-Z_-]+:' $(MAKEFILE_LIST) | sed 's/:.*//')
@@ -36,11 +38,6 @@ plan-destroy: validate
 destroy: plan-destroy
 	terraform -chdir=$(TARGET_TF_DIR) destroy -auto-approv e$(TF_CMD_ARGS)
 
-# --- Configuration ---
-ENV ?= dev
-COMMON_DIR := terraform
-ENVIRONMENTS_BASE_DIR := environments
-
 # Dev - Common Resources
 DEV_COMMON_TF_DIR := $(COMMON_DIR)
 DEV_COMMON_TF_CMD_ARGS := -var-file=../$(ENVIRONMENTS_BASE_DIR)/dev/terraform.tfvars
@@ -60,25 +57,19 @@ _IMAGE_TAG_FROM_GIT := $(strip $(shell git rev-parse --short HEAD))
 IMAGE_TAG ?= $(_IMAGE_TAG_FROM_GIT)
 DEFAULT_LAMBDA_IMAGE_URI := $(ECR_REGISTRY)/$(LAMBDA):$(IMAGE_TAG) # General default, used if specific lambda doesn't override.
 
-dev-common-init: ## [dev common] Initialize Terraform
-	$(MAKE) init TARGET_TF_DIR=$(DEV_COMMON_TF_DIR)
-
 dev-common-plan: ## [dev common] Plan Terraform
 	$(MAKE) plan TARGET_TF_DIR=$(DEV_COMMON_TF_DIR) TF_CMD_ARGS="$(DEV_COMMON_TF_CMD_ARGS)"
 
 dev-common-apply: ## [dev common] Apply Terraform (prompts)
 	$(MAKE) apply TARGET_TF_DIR=$(DEV_COMMON_TF_DIR) TF_CMD_ARGS="$(DEV_COMMON_TF_CMD_ARGS)"
 
-dev-common-destroy: ## [dev common] Destroy resources (prompts)
-	$(MAKE) destroy TARGET_TF_DIR=$(DEV_COMMON_TF_DIR) TF_CMD_ARGS="$(DEV_COMMON_TF_CMD_ARGS)"
-
 
 # --- Lambda Specific Docker Targets ---
-lambda-ecr-login: ## Log in to AWS ECR (uses ECR_REGISTRY, AWS_REGION)
+lambda-ecr-login:
 	@echo "Logging in to ECR registry $(ECR_REGISTRY) in region $(AWS_REGION)"
 	aws ecr get-login-password --region $(AWS_REGION) | docker login --username AWS --password-stdin $(ECR_REGISTRY)
 
-lambda-build-push: lambda-ecr-login ## Build and push Docker image. Vars: LAMBDA_CODE_DIR_SUFFIX, LAMBDA_ECR_NAME, ECR_REGISTRY, IMAGE_TAG
+lambda-build-push: lambda-ecr-login
 	$(eval _LAMBDA_ROOT_DIR := $(LAMBDAS_BASE_DIR)/$(LAMBDA_CODE_DIR_SUFFIX))
 	$(eval _CURRENT_LAMBDA_IMAGE_URI := $(ECR_REGISTRY)/$(LAMBDA_ECR_NAME):$(IMAGE_TAG))
 	@echo "Building and pushing Docker image for lambda source $(LAMBDA_CODE_DIR_SUFFIX) to ECR repo $(LAMBDA_ECR_NAME) from build context $(_LAMBDA_ROOT_DIR)"
@@ -105,7 +96,7 @@ _HELLO_WORLD_DIR_COMMIT_HASH := $(strip $(shell git log -1 --format=%h -- $(LAMB
 DEV_HW_IMAGE_TAG := $(if $(_HELLO_WORLD_DIR_COMMIT_HASH),$(_HELLO_WORLD_DIR_COMMIT_HASH),$(IMAGE_TAG)) # Fallback to global IMAGE_TAG.
 
 # Define the expected ECR repository name for hello-world, matching Terraform's local.effective_function_name.
-_EXPECTED_HW_ECR_REPO_NAME := hands-on-lambda-ecr-dev-hello-world
+_EXPECTED_HW_ECR_REPO_NAME := hands-on-lambda-ecr-hello-world
 
 # Construct the default image URI for hello-world using its specific tag and correct ECR repo name.
 _DEFAULT_DEV_HW_IMAGE_URI_WITH_SPECIFIC_TAG := $(ECR_REGISTRY)/$(_EXPECTED_HW_ECR_REPO_NAME):$(DEV_HW_IMAGE_TAG)
@@ -114,10 +105,6 @@ _DEFAULT_DEV_HW_IMAGE_URI_WITH_SPECIFIC_TAG := $(ECR_REGISTRY)/$(_EXPECTED_HW_EC
 ACTUAL_DEV_HW_LAMBDA_IMAGE_URI := $(or $(LAMBDA_IMAGE_URI),$(_DEFAULT_DEV_HW_IMAGE_URI_WITH_SPECIFIC_TAG)) # Note: ECR_REGISTRY must be correctly set.
 DEV_HW_TF_CMD_ARGS := -var-file=../../$(ENVIRONMENTS_BASE_DIR)/dev/terraform.tfvars -var="image_uri=$(ACTUAL_DEV_HW_LAMBDA_IMAGE_URI)"
 
-dev-hello-world-init: ## [dev hello-world] Initialize Terraform
-	$(MAKE) init TARGET_TF_DIR=$(DEV_HW_LAMBDA_TF_DIR)
-dev-hello-world-validate: ## [dev hello-world] Validate Terraform
-	$(MAKE) validate TARGET_TF_DIR=$(DEV_HW_LAMBDA_TF_DIR)
 dev-hello-world-plan: ## [dev hello-world] Plan Terraform
 	$(MAKE) plan TARGET_TF_DIR=$(DEV_HW_LAMBDA_TF_DIR) TF_CMD_ARGS="$(DEV_HW_TF_CMD_ARGS)"
 
@@ -137,8 +124,4 @@ _dev-hello-world-push-image:
 	$(MAKE) lambda-build-push LAMBDA_CODE_DIR_SUFFIX=hello-world LAMBDA_ECR_NAME=$(_EXPECTED_HW_ECR_REPO_NAME) IMAGE_TAG=$(DEV_HW_IMAGE_TAG)
 
 dev-hello-world-apply: _dev-hello-world-apply-prereqs _dev-hello-world-push-image ## [dev hello-world] Apply Terraform (Creates ECR/IAM, builds/pushes image, then applies Lambda)
-	@echo "Applying all hello-world resources (including Lambda function)..."
 	$(MAKE) apply TARGET_TF_DIR=$(DEV_HW_LAMBDA_TF_DIR) TF_CMD_ARGS="$(DEV_HW_TF_CMD_ARGS)"
-
-dev-hello-world-destroy: ## [dev hello-world] Destroy resources
-	$(MAKE) destroy TARGET_TF_DIR=$(DEV_HW_LAMBDA_TF_DIR) TF_CMD_ARGS="$(DEV_HW_TF_CMD_ARGS)"
