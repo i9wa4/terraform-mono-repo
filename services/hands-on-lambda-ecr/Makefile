@@ -50,7 +50,9 @@ init:
 	terraform -chdir=$(TARGET_TF_DIR) init -reconfigure \
 		-backend-config="region=$(AWS_REGION)" \
 		-backend-config="bucket=$(TF_BACKEND_S3_BUCKET)" \
-		-backend-config="key=$(PROJECT_NAME)/$(TARGET_TF_DIR)/terraform.tfstate"
+		-backend-config="key=$(PROJECT_NAME)/$(TARGET_TF_DIR)/terraform.tfstate" \
+		-backend-config="encrypt=true" \
+		-backend-config="use_lockfile=true"
 
 validate: init
 	terraform -chdir=$(TARGET_TF_DIR) validate
