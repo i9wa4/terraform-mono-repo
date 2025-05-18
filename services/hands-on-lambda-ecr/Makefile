@@ -83,15 +83,15 @@ dev-common-destroy: ## [dev common] Destroy resources (prompts)
 
 
 # --- Lambda Specific Docker Targets ---
-# Example: make lambda-build-push LAMBDA=my-lambda
+# Example: make lambda-build-push LAMBDA_CODE_DIR_SUFFIX=my-lambda-dir LAMBDA_ECR_NAME=my-ecr-repo-name
 lambda-ecr-login: ## Log in to AWS ECR (uses ECR_REGISTRY, AWS_REGION)
 	@echo "Logging in to ECR registry $(ECR_REGISTRY) in region $(AWS_REGION)"
 	aws ecr get-login-password --region $(AWS_REGION) | docker login --username AWS --password-stdin $(ECR_REGISTRY)
 
-lambda-build-push: lambda-ecr-login ## Build and push Docker image for a lambda to ECR. Vars: LAMBDA, ECR_REGISTRY, IMAGE_TAG
-	$(eval _LAMBDA_ROOT_DIR := $(LAMBDAS_BASE_DIR)/$(LAMBDA))
-	$(eval _CURRENT_LAMBDA_IMAGE_URI := $(ECR_REGISTRY)/$(LAMBDA):$(IMAGE_TAG))
-	@echo "Building and pushing Docker image for lambda: $(LAMBDA) from build context $(_LAMBDA_ROOT_DIR)"
+lambda-build-push: lambda-ecr-login ## Build and push Docker image. Vars: LAMBDA_CODE_DIR_SUFFIX, LAMBDA_ECR_NAME, ECR_REGISTRY, IMAGE_TAG
+	$(eval _LAMBDA_ROOT_DIR := $(LAMBDAS_BASE_DIR)/$(LAMBDA_CODE_DIR_SUFFIX))
+	$(eval _CURRENT_LAMBDA_IMAGE_URI := $(ECR_REGISTRY)/$(LAMBDA_ECR_NAME):$(IMAGE_TAG))
+	@echo "Building and pushing Docker image for lambda source $(LAMBDA_CODE_DIR_SUFFIX) to ECR repo $(LAMBDA_ECR_NAME) from build context $(_LAMBDA_ROOT_DIR)"
 	@echo "Image: $(_CURRENT_LAMBDA_IMAGE_URI)"
 	@if [ ! -f "$(_LAMBDA_ROOT_DIR)/Dockerfile" ]; then echo "Error: Dockerfile not found in '$(_LAMBDA_ROOT_DIR)'."; exit 1; fi
 	docker build -t $(_CURRENT_LAMBDA_IMAGE_URI) $(_LAMBDA_ROOT_DIR) --platform=linux/arm64 --provenance=false
@@ -121,9 +121,11 @@ DEV_HW_LAMBDA_TF_DIR := $(LAMBDAS_BASE_DIR)/hello-world
 _HELLO_WORLD_DIR_COMMIT_HASH := $(shell git log -1 --format=%h -- $(LAMBDAS_BASE_DIR)/hello-world 2>/dev/null)
 DEV_HW_IMAGE_TAG := $(if $(_HELLO_WORLD_DIR_COMMIT_HASH),$(_HELLO_WORLD_DIR_COMMIT_HASH),$(IMAGE_TAG))
 
-# Construct the default image URI for hello-world using its specific tag.
-# The lambda name in the URI is 'hello-world' for these dev-hello-world targets.
-_DEFAULT_DEV_HW_IMAGE_URI_WITH_SPECIFIC_TAG := $(ECR_REGISTRY)/hello-world:$(DEV_HW_IMAGE_TAG)
+# Define the expected ECR repository name for hello-world, matching Terraform's local.effective_function_name
+_EXPECTED_HW_ECR_REPO_NAME := hands-on-lambda-ecr-dev-hello-world
+
+# Construct the default image URI for hello-world using its specific tag and correct ECR repo name.
+_DEFAULT_DEV_HW_IMAGE_URI_WITH_SPECIFIC_TAG := $(ECR_REGISTRY)/$(_EXPECTED_HW_ECR_REPO_NAME):$(DEV_HW_IMAGE_TAG)
 
 # Use LAMBDA_IMAGE_URI if provided by the user, otherwise use the hello-world specific default URI.
 # Note: ECR_REGISTRY must be correctly set.
@@ -149,9 +151,8 @@ _dev-hello-world-apply-prereqs:
 
 # Internal target to build and push the hello-world image
 _dev-hello-world-push-image:
-	$(eval _EXPECTED_ECR_REPO_NAME := hands-on-lambda-ecr-dev-hello-world) # Matches terraform's local.effective_function_name
-	@echo "Building and pushing hello-world image $(ECR_REGISTRY)/$(_EXPECTED_ECR_REPO_NAME):$(DEV_HW_IMAGE_TAG)..."
-	$(MAKE) lambda-build-push LAMBDA=$(_EXPECTED_ECR_REPO_NAME) IMAGE_TAG=$(DEV_HW_IMAGE_TAG)
+	@echo "Building and pushing hello-world image $(ECR_REGISTRY)/$(_EXPECTED_HW_ECR_REPO_NAME):$(DEV_HW_IMAGE_TAG)..."
+	$(MAKE) lambda-build-push LAMBDA_CODE_DIR_SUFFIX=hello-world LAMBDA_ECR_NAME=$(_EXPECTED_HW_ECR_REPO_NAME) IMAGE_TAG=$(DEV_HW_IMAGE_TAG)
 
 dev-hello-world-apply: _dev-hello-world-apply-prereqs _dev-hello-world-push-image ## [dev hello-world] Apply Terraform (Creates ECR/IAM, builds/pushes image, then applies Lambda)
 	@echo "Applying all hello-world resources (including Lambda function)..."
