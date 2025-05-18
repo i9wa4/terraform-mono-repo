@@ -13,20 +13,16 @@ help: ## print this help
 # --------------------
 # Variables
 #
-TF_BACKEND_S3_BUCKET ?= "your-default-s3-bucket" # Will be overridden by GitHub Actions env
+TF_BACKEND_S3_BUCKET ?= "your-default-s3-bucket"
 PROJECT_NAME ?= hands-on-lambda-ecr
 AWS_REGION ?= ap-northeast-1
-AWS_ACCOUNT_ID ?= "your-default-aws-account-id" # Will be overridden by GitHub Actions env
-
 ENV ?= dev
+
 COMMON_TF_DIR := terraform
 COMMON_TF_CMD_ARGS := '-var-file=../environments/$(ENV)/terraform.tfvars'
-
-ECR_REGISTRY ?= $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com
-
-PLAN_FILE_NAME ?= plan.tfplan
-PLAN_FILE_OUTPUT_OPTION ?=
-PLAN_FILE_INPUT_ARG ?=
+AWS_ACCOUNT_ID := $(strip $(shell terraform -chdir=$(COMMON_TF_DIR) output -raw aws_account_id 2>/dev/null))
+ECR_REGISTRY := $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com
+PLAN_FILE_NAME := plan.tfplan
 
 # ----------------------
 # Public Targets
