@@ -40,6 +40,27 @@ ENVIRONMENTS_BASE_DIR := environments
 DEV_COMMON_TF_DIR := $(COMMON_DIR)
 DEV_COMMON_TF_CMD_ARGS := -var-file=../$(ENVIRONMENTS_BASE_DIR)/dev/terraform.tfvars
 
+# Attempt to fetch AWS Account ID and Region from the common Terraform configuration outputs.
+# These commands will only succeed if 'terraform apply' has been run for the common configuration.
+# Fallbacks are provided if these commands fail or return empty.
+TF_OUTPUT_AWS_ACCOUNT_ID := $(shell terraform -chdir=$(DEV_COMMON_TF_DIR) output -raw aws_account_id 2>/dev/null)
+TF_OUTPUT_AWS_REGION := $(shell terraform -chdir=$(DEV_COMMON_TF_DIR) output -raw aws_region 2>/dev/null)
+
+# Set AWS_REGION: Use value from Terraform output if available, otherwise use environment variable or fallback.
+AWS_REGION := $(if $(TF_OUTPUT_AWS_REGION),$(TF_OUTPUT_AWS_REGION),$(AWS_REGION))
+AWS_REGION ?= ap-northeast-1 # Default fallback if not set by TF output or environment
+
+# Set AWS_ACCOUNT_ID for ECR: Use value from Terraform output if available, otherwise use a placeholder.
+# This is primarily for constructing ECR_REGISTRY.
+ECR_AWS_ACCOUNT_ID := $(if $(TF_OUTPUT_AWS_ACCOUNT_ID),$(TF_OUTPUT_AWS_ACCOUNT_ID),"YOUR_AWS_ACCOUNT_ID")
+
+# Docker image details
+ECR_REGISTRY ?= $(ECR_AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com
+IMAGE_TAG ?= $(shell git rev-parse --short HEAD)
+# LAMBDA_IMAGE_URI is typically passed to lambda apply targets, or constructed.
+# For 'make lambda-build-push', it's constructed using ECR_REGISTRY, LAMBDA, IMAGE_TAG.
+DEFAULT_LAMBDA_IMAGE_URI := $(ECR_REGISTRY)/$(LAMBDA):$(IMAGE_TAG)
+
 dev-common-init: ## [dev common] Initialize Terraform
 	$(MAKE) init TARGET_TF_DIR=$(DEV_COMMON_TF_DIR)
 
@@ -62,10 +83,10 @@ lambda-ecr-login: ## Log in to AWS ECR (uses ECR_REGISTRY, AWS_REGION)
 lambda-build-push: lambda-ecr-login ## Build and push Docker image for a lambda to ECR. Vars: LAMBDA, ECR_REGISTRY, IMAGE_TAG
 	$(eval _CURRENT_LAMBDA_APP_DIR := $(LAMBDAS_BASE_DIR)/$(LAMBDA)/app)
 	$(eval _CURRENT_LAMBDA_IMAGE_URI := $(ECR_REGISTRY)/$(LAMBDA):$(IMAGE_TAG))
-	@echo "Building and pushing Docker image for lambda: $(LAMBDA) from $(CURRENT_LAMBDA_APP_DIR)"
+	@echo "Building and pushing Docker image for lambda: $(LAMBDA) from $(_CURRENT_LAMBDA_APP_DIR)"
 	@echo "Image: $(_CURRENT_LAMBDA_IMAGE_URI)"
-	@if [ ! -d "$(CURRENT_LAMBDA_APP_DIR)" ]; then echo "Error: Lambda app directory '$(CURRENT_LAMBDA_APP_DIR)' does not exist. Create it with a Dockerfile."; exit 1; fi
-	docker build -t $(_CURRENT_LAMBDA_IMAGE_URI) $(CURRENT_LAMBDA_APP_DIR) --platform=linux/arm64 --provenance=false
+	@if [ ! -d "$(_CURRENT_LAMBDA_APP_DIR)" ]; then echo "Error: Lambda app directory '$(_CURRENT_LAMBDA_APP_DIR)' does not exist. Create it with a Dockerfile."; exit 1; fi
+	docker build -t $(_CURRENT_LAMBDA_IMAGE_URI) $(_CURRENT_LAMBDA_APP_DIR) --platform=linux/arm64 --provenance=false
 	docker push $(_CURRENT_LAMBDA_IMAGE_URI)
 
 
@@ -74,18 +95,12 @@ LAMBDAS_BASE_DIR := lambdas
 
 
 # AWS Region - ensure this is set in your environment or AWS config
-#
+# Note: AWS_REGION is now primarily set using Terraform output from common config, with fallbacks.
 
-_AWS_REGION_FROM_TF := $(shell terraform -chdir=$(DEV_HW_LAMBDA_TF_DIR) console -var-file=../../environments/dev/terraform.tfvars <<< "var.aws_region" 2>/dev/null | sed 's/"//g')
-AWS_REGION := $(_AWS_REGION_FROM_TF)
-_AWS_ACCOUNT_ID_FROM_TF := $(shell terraform -chdir=$(DEV_HW_LAMBDA_TF_DIR) console -var-file=../../environments/dev/terraform.tfvars <<< "data.aws_caller_identity.current.account_id" 2>/dev/null | sed 's/"//g')
 
-# Docker image details
-ECR_REGISTRY ?= YOUR_AWS_ACCOUNT_ID.dkr.ecr.YOUR_AWS_REGION.amazonaws.com # <-- REPLACE YOUR_AWS_ACCOUNT_ID and YOUR_AWS_REGION with your actual values
-IMAGE_TAG ?= $(shell git rev-parse --short HEAD)
-# LAMBDA_IMAGE_URI is typically passed to lambda apply targets, or constructed.
-# For 'make lambda-build-push', it's constructed using ECR_REGISTRY, LAMBDA, IMAGE_TAG.
-DEFAULT_LAMBDA_IMAGE_URI := $(ECR_REGISTRY)/$(LAMBDA):$(IMAGE_TAG)
+# _AWS_ACCOUNT_ID_FROM_TF is no longer needed as we use TF_OUTPUT_AWS_ACCOUNT_ID
+
+# Docker image details are now defined earlier, using TF outputs.
 
 
 # Dev - hello-world Lambda
