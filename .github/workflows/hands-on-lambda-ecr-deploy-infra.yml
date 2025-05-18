@@ -1,37 +1,89 @@
-name: hands-on-lambda-ecr-deploy-infra
-run-name: ${{ github.event_name }} on ${{ github.ref_name }} by @${{ github.actor }}
+name: hands-on-lambda-ecr-infra
+run-name: ${{ github.event_name }} on ${{ github.ref_name }} by @${{ github.actor }} inputs ${{ github.event.inputs.environment }}-${{ github.event.inputs.action }}
 
 on:
   workflow_dispatch:
     inputs:
       environment:
-        description: "Environment to deploy"
+        description: 'Environment to deploy'
         required: true
-        default: "dev"
+        default: 'dev'
         type: choice
         options:
           - dev
-  pull_request:
-    paths:
-      - "services/hands-on-lambda-ecr/terraform/**"
-      - "services/hands-on-lambda-ecr/environments/**"
+      action:
+        description: 'Action to perform'
+        required: true
+        default: 'plan'
+        type: choice
+        options:
+          - plan
+          - apply
 
 env:
   AWS_REGION: "ap-northeast-1"
   TF_VERSION: "1.11.4"
   TF_WORKING_DIR: "./services/hands-on-lambda-ecr"
-  TF_BACKEND_S3_BUCKET: ${{ secrets.TF_BACKEND_S3_BUCKET_NAME }}
-  ENV: ${{ github.event.inputs.environment || 'dev' }}
+  TF_PLAN_FILE: "plan.tfplan"
 
 permissions:
   id-token: write
   contents: read
 
 jobs:
-  deploy-common-infrastructure:
-    name: "Deploy Common Infra (${{ github.event.inputs.environment || 'PR' }})"
+  plan_infra:
+    name: "Plan Infra (${{ github.event.inputs.environment }})"
     runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.environment }} # Links to GitHub Environment for protection rules/secrets
+    outputs:
+      environment_name: ${{ steps.set_env.outputs.DEPLOY_ENV }}
+      plan_artifact_name: tfplan-${{ steps.set_env.outputs.DEPLOY_ENV }}
+    steps:
+      - name: Determine Environment
+        id: set_env
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "DEPLOY_ENV=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "DEPLOY_ENV=dev" >> $GITHUB_OUTPUT
+          else
+            echo "DEPLOY_ENV=dev" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials using OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.HANDS_ON_LAMBDA_ECR_TERRAFORM_IAM }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Plan
+        id: plan
+        env:
+          ENV: ${{ github.event.inputs.environment || 'dev' }} # Default to 'dev' for PRs if not specified
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          make common-plan
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+      - name: Upload Terraform Plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ needs.plan_apps.outputs.plan_artifact_name }}
+          path: ${{ env.TF_WORKING_DIR }}/${{ env.TF_PLAN_FILE }}
+          retention-days: 1
+
+  apply_infra:
+    name: "Apply Infra (${{ github.event.inputs.environment }})"
+    runs-on: ubuntu-latest
+    needs: plan_infra
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -47,20 +99,17 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
-      - name: Terraform Common Plan
-        id: plan
-        env:
-          ENV: ${{ github.event.inputs.environment || 'dev' }} # Default to 'dev' for PRs if not specified
-          GITHUB_REPOSITORY: ${{ github.repository }}
-        run: |
-          make common-plan
-        working-directory: ${{ env.TF_WORKING_DIR }}
+      - name: Download Terraform Plan
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.plan_apps.outputs.plan_artifact_name }}
+          path: ${{ env.TF_WORKING_DIR }}/${{ env.TF_PLAN_FILE }}
 
-      - name: Terraform Common Apply (Manual Trigger Only)
-        if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment
+      - name: Terraform Apply
         env:
-          ENV: ${{ github.event.inputs.environment }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
+          ENV: ${{ needs.plan_apps.outputs.environment_name }}
+          TF_BACKEND_S3_BUCKET: ${{ secrets.TF_BACKEND_S3_BUCKET_NAME }}
         run: |
+          ls -l ${{ env.TF_WORKING_DIR }}
           make common-apply
         working-directory: ${{ env.TF_WORKING_DIR }}
