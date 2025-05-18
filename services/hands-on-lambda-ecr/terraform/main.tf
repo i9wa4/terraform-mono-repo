@@ -1,3 +1,14 @@
+provider "aws" {
+  region = var.aws_region
+  default_tags {
+    tags = {
+      Project     = var.project_name
+      Environment = var.environment
+      ManagedBy   = "Terraform"
+    }
+  }
+}
+
 resource "aws_iam_role" "github_actions_oidc_role" {
   name = var.github_actions_role_name
   assume_role_policy = jsonencode({
@@ -18,7 +29,6 @@ resource "aws_iam_role" "github_actions_oidc_role" {
       }
     ]
   })
-  tags = var.common_tags
 }
 
 resource "aws_iam_role_policy_attachment" "github_actions_oidc_role_admin_attachment" {
