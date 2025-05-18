@@ -104,7 +104,10 @@ dev-common-destroy-auto: ## [dev common] Destroy resources (auto-approves)
 # LAMBDA_IMAGE_URI must be passed for plan/apply/destroy if it's a required variable.
 # Example: make dev-hello-world-apply LAMBDA_IMAGE_URI="your-image-uri"
 DEV_HW_LAMBDA_TF_DIR := $(LAMBDAS_BASE_DIR)/hello_world
-DEV_HW_TF_CMD_ARGS := -var-file=../../$(ENVIRONMENTS_BASE_DIR)/dev/terraform.tfvars -var="image_uri=$(LAMBDA_IMAGE_URI)"
+# Use LAMBDA_IMAGE_URI if provided, otherwise use DEFAULT_LAMBDA_IMAGE_URI.
+# Note: DEFAULT_LAMBDA_IMAGE_URI relies on ECR_REGISTRY being correctly set.
+ACTUAL_DEV_HW_LAMBDA_IMAGE_URI := $(or $(LAMBDA_IMAGE_URI),$(DEFAULT_LAMBDA_IMAGE_URI))
+DEV_HW_TF_CMD_ARGS := -var-file=../../$(ENVIRONMENTS_BASE_DIR)/dev/terraform.tfvars -var="image_uri=$(ACTUAL_DEV_HW_LAMBDA_IMAGE_URI)"
 
 dev-hello-world-init: ## [dev hello-world] Initialize Terraform
 	@$(MAKE) init TARGET_TF_DIR=$(DEV_HW_LAMBDA_TF_DIR)
