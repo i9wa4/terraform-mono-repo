@@ -37,9 +37,6 @@ common-plan: ## [common] terraform plan
 common-apply: ## [common] terraform apply
 	$(MAKE) apply TARGET_TF_DIR=$(COMMON_TF_DIR) PLAN_FILE_INPUT_ARG=$(PLAN_FILE_NAME)
 
-hello-world-init: ## [hello-world] terraform init (for GH Actions)
-	$(MAKE) lambda-init APP_NAME=hello-world
-
 hello-world-plan: ## [hello-world] terraform plan
 	$(MAKE) lambda-plan APP_NAME=hello-world
 
@@ -82,13 +79,13 @@ ecr-build-push: ecr-login
 lambda-init:
 	$(MAKE) init TARGET_TF_DIR=lambdas/$(APP_NAME)
 
-lambda-plan: lambda-init
+lambda-plan:
 	$(MAKE) plan \
 		TARGET_TF_DIR=lambdas/$(APP_NAME) \
 		TF_CMD_ARGS='-var-file=../../environments/$(ENV)/terraform.tfvars -var="image_uri=$(ECR_REGISTRY)/$(PROJECT_NAME)-$(ENV)-$(APP_NAME):$(shell git log -1 --format=%h -- lambdas/$(APP_NAME) 2>/dev/null | tr -d '[:space:]')"'\
 		PLAN_FILE_OUTPUT_OPTION="-out=$(PLAN_FILE_NAME)"
 
-lambda-apply: lambda-init
+lambda-apply:
 	$(MAKE) ecr-build-push \
 		ECR_IMAGE_URI=$(ECR_REGISTRY)/$(PROJECT_NAME)-$(ENV)-$(APP_NAME):$(shell git log -1 --format=%h -- lambdas/$(APP_NAME) 2>/dev/null | tr -d '[:space:]') \
 		APP_ROOT_DIR=lambdas/$(APP_NAME)
