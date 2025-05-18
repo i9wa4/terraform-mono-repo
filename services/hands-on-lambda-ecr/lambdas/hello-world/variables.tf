@@ -17,16 +17,6 @@ variable "aws_region" {
   # No default; fundamental setting.
 }
 
-variable "common_tags" {
-  description = "Common tags for resources. Merged with lambda-specific tags."
-  type        = map(string)
-  default = {
-    Project     = "hands-on-lambda-ecr" # Default project tag.
-    ManagedBy   = "Terraform"
-    # The Environment tag will be explicitly set using var.environment in default_tags.
-  }
-}
-
 variable "aws_account_id" {
   description = "AWS Account ID. Typically from .tfvars; declared here to silence warnings."
   type        = string

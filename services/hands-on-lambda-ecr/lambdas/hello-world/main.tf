@@ -1,14 +1,12 @@
 provider "aws" {
   region = var.aws_region
   default_tags {
-    tags = merge(
-      var.common_tags, # Common tags first
-      {                # Then specific tags that should take precedence
-        Project     = var.project_name
-        Environment = var.environment # Ensures this value is used for the Environment tag
-        LambdaName  = var.lambda_name_suffix
-      }
-    )
+    tags = {
+      Project     = var.project_name
+      Environment = var.environment
+      LambdaName  = var.lambda_name_suffix
+      ManagedBy   = "Terraform"
+    }
   }
 }
 
