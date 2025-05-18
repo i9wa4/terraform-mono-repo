@@ -108,7 +108,7 @@ endif
 .PHONY: init validate plan apply apply-auto destroy destroy-auto
 init: $(PRE_REQ_CHECK)
 	@echo "==> Initializing Terraform for component: $(COMPONENT) $(if $(filter lambda,$(COMPONENT)),(lambda: $(LAMBDA)),) in env: $(ENV) from $(TARGET_TF_DIR)"
-	terraform -chdir=$(TARGET_TF_DIR) init -backend-config="key=hands-on-lambda-ecr/$(subst lambdas/,lambdas/,$(TARGET_TF_DIR))/terraform.tfstate"
+	terraform -chdir=$(TARGET_TF_DIR) init -backend-config="key=hands-on-lambda-ecr/$(TARGET_TF_DIR)/terraform.tfstate"
 
 validate: $(PRE_REQ_CHECK)
 	@echo "==> Validating Terraform for component: $(COMPONENT) $(if $(filter lambda,$(COMPONENT)),(lambda: $(LAMBDA)),) from $(TARGET_TF_DIR)"
