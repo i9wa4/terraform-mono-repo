@@ -107,29 +107,29 @@ endif
 
 .PHONY: init validate plan apply apply-auto destroy destroy-auto
 init: $(PRE_REQ_CHECK)
-	@echo "==> Initializing Terraform for component: $(COMPONENT) $(if $(filter lambda,$(COMPONENT)),(lambda: $(LAMBDA)),) in env: $(ENV) from $(TARGET_TF_DIR)"
+	@echo "==> Initializing Terraform for component: $(COMPONENT)$(if $(filter lambda,$(COMPONENT)), (lambda: $(LAMBDA)),) in env: $(ENV) from $(TARGET_TF_DIR)"
 	terraform -chdir=$(TARGET_TF_DIR) init -backend-config="key=hands-on-lambda-ecr/$(TARGET_TF_DIR)/terraform.tfstate"
 
 validate: $(PRE_REQ_CHECK)
-	@echo "==> Validating Terraform for component: $(COMPONENT) $(if $(filter lambda,$(COMPONENT)),(lambda: $(LAMBDA)),) from $(TARGET_TF_DIR)"
+	@echo "==> Validating Terraform for component: $(COMPONENT)$(if $(filter lambda,$(COMPONENT)), (lambda: $(LAMBDA)),) from $(TARGET_TF_DIR)"
 	terraform -chdir=$(TARGET_TF_DIR) validate
 
 plan: init
-	@echo "==> Planning changes for component: $(COMPONENT) $(if $(filter lambda,$(COMPONENT)),(lambda: $(LAMBDA)),) in env: $(ENV) from $(TARGET_TF_DIR)"
+	@echo "==> Planning changes for component: $(COMPONENT)$(if $(filter lambda,$(COMPONENT)), (lambda: $(LAMBDA)),) in env: $(ENV) from $(TARGET_TF_DIR)"
 	terraform -chdir=$(TARGET_TF_DIR) plan $(TF_VARS_ARG)
 
 apply: init
-	@echo "==> Applying changes for component: $(COMPONENT) $(if $(filter lambda,$(COMPONENT)),(lambda: $(LAMBDA)),) in env: $(ENV) from $(TARGET_TF_DIR)"
+	@echo "==> Applying changes for component: $(COMPONENT)$(if $(filter lambda,$(COMPONENT)), (lambda: $(LAMBDA)),) in env: $(ENV) from $(TARGET_TF_DIR)"
 	terraform -chdir=$(TARGET_TF_DIR) apply $(TF_VARS_ARG)
 
 apply-auto: init
-	@echo "==> Applying changes (auto-approve) for component: $(COMPONENT) $(if $(filter lambda,$(COMPONENT)),(lambda: $(LAMBDA)),) in env: $(ENV) from $(TARGET_TF_DIR)"
+	@echo "==> Applying changes (auto-approve) for component: $(COMPONENT)$(if $(filter lambda,$(COMPONENT)), (lambda: $(LAMBDA)),) in env: $(ENV) from $(TARGET_TF_DIR)"
 	terraform -chdir=$(TARGET_TF_DIR) apply $(TF_VARS_ARG) -auto-approve
 
 destroy: init
-	@echo "==> Destroying resources for component: $(COMPONENT) $(if $(filter lambda,$(COMPONENT)),(lambda: $(LAMBDA)),) in env: $(ENV) from $(TARGET_TF_DIR)"
+	@echo "==> Destroying resources for component: $(COMPONENT)$(if $(filter lambda,$(COMPONENT)), (lambda: $(LAMBDA)),) in env: $(ENV) from $(TARGET_TF_DIR)"
 	terraform -chdir=$(TARGET_TF_DIR) destroy $(TF_VARS_ARG)
 
 destroy-auto: init
-	@echo "==> Destroying resources (auto-approve) for component: $(COMPONENT) $(if $(filter lambda,$(COMPONENT)),(lambda: $(LAMBDA)),) in env: $(ENV) from $(TARGET_TF_DIR)"
+	@echo "==> Destroying resources (auto-approve) for component: $(COMPONENT)$(if $(filter lambda,$(COMPONENT)), (lambda: $(LAMBDA)),) in env: $(ENV) from $(TARGET_TF_DIR)"
 	terraform -chdir=$(TARGET_TF_DIR) destroy $(TF_VARS_ARG) -auto-approve
