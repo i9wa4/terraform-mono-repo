@@ -32,10 +32,10 @@ PLAN_FILE_INPUT_ARG ?=
 # Public Targets
 #
 common-plan: ## [common] terraform plan
-	$(MAKE) plan TARGET_TF_DIR=$(COMMON_TF_DIR) TF_CMD_ARGS=$(COMMON_TF_CMD_ARGS) PLAN_FILE_OUTPUT_OPTION="-out=../$(PLAN_FILE_NAME)"
+	$(MAKE) plan TARGET_TF_DIR=$(COMMON_TF_DIR) TF_CMD_ARGS=$(COMMON_TF_CMD_ARGS) PLAN_FILE_OUTPUT_OPTION="-out=$(PLAN_FILE_NAME)"
 
 common-apply: ## [common] terraform apply
-	$(MAKE) apply TARGET_TF_DIR=$(COMMON_TF_DIR) PLAN_FILE_INPUT_ARG="../$(PLAN_FILE_NAME)"
+	$(MAKE) apply TARGET_TF_DIR=$(COMMON_TF_DIR) PLAN_FILE_INPUT_ARG=$(PLAN_FILE_NAME)
 
 hello-world-init: ## [hello-world] terraform init (for GH Actions)
 	$(MAKE) lambda-init APP_NAME=hello-world
@@ -86,7 +86,7 @@ lambda-plan: lambda-init
 	$(MAKE) plan \
 		TARGET_TF_DIR=lambdas/$(APP_NAME) \
 		TF_CMD_ARGS='-var-file=../../environments/$(ENV)/terraform.tfvars -var="image_uri=$(ECR_REGISTRY)/$(PROJECT_NAME)-$(ENV)-$(APP_NAME):$(shell git log -1 --format=%h -- lambdas/$(APP_NAME) 2>/dev/null | tr -d '[:space:]')"'\
-		PLAN_FILE_OUTPUT_OPTION="-out=../../$(PLAN_FILE_NAME)"
+		PLAN_FILE_OUTPUT_OPTION="-out=$(PLAN_FILE_NAME)"
 
 lambda-apply: lambda-init
 	$(MAKE) ecr-build-push \
@@ -94,4 +94,4 @@ lambda-apply: lambda-init
 		APP_ROOT_DIR=lambdas/$(APP_NAME)
 	$(MAKE) apply \
 		TARGET_TF_DIR=lambdas/$(APP_NAME) \
-		PLAN_FILE_INPUT_ARG="../../$(PLAN_FILE_NAME)"
+		PLAN_FILE_INPUT_ARG=$(PLAN_FILE_NAME)
