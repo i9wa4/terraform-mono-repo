@@ -78,7 +78,7 @@ resource "aws_iam_role_policy_attachment" "lambda_exec_policy_attachment" {
 
 resource "aws_cloudwatch_log_group" "lambda_log_group" {
   name              = "/aws/lambda/${var.function_name}"
-  retention_in_days = var.log_retention_days
+  retention_in_days = var.log_retention_days != null ? var.log_retention_days : 7
 
   tags = var.tags
 }
@@ -89,8 +89,8 @@ resource "aws_lambda_function" "this" {
   package_type  = "Image"
   image_uri     = var.image_uri
 
-  memory_size = var.lambda_memory_size
-  timeout     = var.lambda_timeout
+  memory_size = var.lambda_memory_size != null ? var.lambda_memory_size : 256
+  timeout     = var.lambda_timeout != null ? var.lambda_timeout : 30
 
   tags = var.tags
 
