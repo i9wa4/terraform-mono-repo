@@ -48,3 +48,16 @@ variable "common_tags" {
   type        = map(string)
   default     = {}
 }
+
+variable "aws_account_id" {
+  description = "AWS Account ID. This is typically provided by the environment's .tfvars file."
+  type        = string
+  # This variable is declared to silence warnings if it's in the .tfvars file but not directly used by this specific lambda configuration.
+  # If it were needed, it would be passed to a module or used directly.
+}
+
+variable "github_repository" {
+  description = "The GitHub repository (e.g., your-org/your-repo). This is typically provided by the environment's .tfvars file."
+  type        = string
+  # This variable is declared to silence warnings if it's in the .tfvars file but not directly used by this specific lambda configuration.
+}

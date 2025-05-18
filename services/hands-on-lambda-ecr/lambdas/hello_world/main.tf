@@ -13,7 +13,7 @@ provider "aws" {
 }
 
 module "lambda_service" {
-  source = "../../modules/lambda_service" # Relative path to the module
+  source = "../../../../modules/lambda_service" # Relative path to the module
 
   function_name      = "${var.project_name}-${var.environment}-${var.lambda_name_suffix}"
   image_uri          = var.image_uri # This will be passed by Makefile/CI
