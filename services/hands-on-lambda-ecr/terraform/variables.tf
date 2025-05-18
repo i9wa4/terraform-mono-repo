@@ -25,16 +25,6 @@ variable "github_repository" {
   type        = string
 }
 
-variable "common_tags" {
-  description = "Common tags to apply to all resources."
-  type        = map(string)
-  default     = {
-    Project     = "hands-on-lambda-ecr"
-    ManagedBy   = "Terraform"
-    # Environment = "common" # This can be overridden by environment-specific .tfvars
-  }
-}
-
 # --- Specific variables for this configuration ---
 
 variable "github_oidc_provider_url" {

@@ -1,3 +1,45 @@
+# --- Common variables, often sourced from a shared .tfvars file ---
+variable "project_name" {
+  description = "Name of the project. This is used to construct resource names and tags."
+  type        = string
+  default     = "hands-on-lambda-ecr" # Default value, can be overridden by .tfvars
+}
+
+variable "environment" {
+  description = "Deployment environment (e.g., dev, prod). This is used for naming and tagging."
+  type        = string
+  default     = "dev" # Default value, can be overridden by .tfvars
+}
+
+variable "aws_region" {
+  description = "AWS region for the Lambda deployment. This should be provided by the .tfvars file."
+  type        = string
+  # No default, as this is a fundamental setting expected from the environment configuration.
+}
+
+variable "common_tags" {
+  description = "Common tags to apply to resources, typically passed from a central .tfvars file."
+  type        = map(string)
+  default     = {
+    Project     = "hands-on-lambda-ecr" # Default project tag
+    ManagedBy   = "Terraform"
+    Environment = "dev"                 # Default environment tag
+  }
+}
+
+variable "aws_account_id" {
+  description = "AWS Account ID. This is typically provided by the environment's .tfvars file."
+  type        = string
+  # This variable is declared to silence warnings if it's in the .tfvars file but not directly used by this specific lambda configuration.
+}
+
+variable "github_repository" {
+  description = "The GitHub repository (e.g., your-org/your-repo). This is typically provided by the environment's .tfvars file."
+  type        = string
+  # This variable is declared to silence warnings if it's in the .tfvars file but not directly used by this specific lambda configuration.
+}
+
+# --- Lambda-specific variables ---
 variable "lambda_name_suffix" {
   description = "Suffix for the Lambda function name, used to construct the full name."
   type        = string
@@ -26,33 +68,5 @@ variable "lambda_timeout" {
   description = "Lambda function timeout in seconds."
   type        = number
   default     = 30
-}
-
-variable "project_name" {
-  description = "Name of the project. This is used to construct resource names and tags."
-  type        = string
-  default     = "hands-on-lambda-ecr" # Default value, can be overridden by .tfvars
-}
-
-variable "environment" {
-  description = "Deployment environment (e.g., dev, prod). This is used for naming and tagging."
-  type        = string
-  default     = "dev" # Default value, can be overridden by .tfvars
-}
-
-variable "aws_region" {
-  description = "AWS region for the Lambda deployment. This should be provided by the .tfvars file."
-  type        = string
-  # No default, as this is a fundamental setting expected from the environment configuration.
-}
-
-variable "common_tags" {
-  description = "Common tags to apply to resources, typically passed from a central .tfvars file."
-  type        = map(string)
-  default     = {
-    Project     = "hands-on-lambda-ecr" # Default project tag
-    ManagedBy   = "Terraform"
-    Environment = "dev"                 # Default environment tag
-  }
 }
 
