@@ -111,7 +111,7 @@ init: $(PRE_REQ_CHECK)
 	terraform -chdir=$(TARGET_TF_DIR) init -backend-config="key=hands-on-lambda-ecr/$(TARGET_TF_DIR)/terraform.tfstate"
 
 validate: $(PRE_REQ_CHECK)
-	@echo "==> Validating Terraform for component: $(COMPONENT)$(if $(filter lambda,$(COMPONENT)), (lambda: $(LAMBDA)),) from $(TARGET_TF_DIR)"
+	@echo "==> Validating Terraform for component: $(COMPONENT)$(if $(filter lambda,$(COMPONENT)), (lambda: $(LAMBDA)),) in env: $(ENV) from $(TARGET_TF_DIR)"
 	terraform -chdir=$(TARGET_TF_DIR) validate
 
 plan: init
