@@ -1,33 +1,25 @@
-# --- Common variables (often sourced from a shared .tfvars file) ---
 variable "project_name" {
-  description = "Name of the project. Used for resource names and tags."
+  description = "The name of the project."
   type        = string
-  default     = "hands-on-lambda-ecr" # Can be overridden by .tfvars.
+  default     = "hands-on-lambda-ecr"
 }
 
 variable "environment" {
-  description = "Deployment environment (e.g., dev, prod). Used for naming and tagging."
+  description = "The environment for the deployment (e.g., dev, stg, prod)."
   type        = string
-  default     = "dev" # Can be overridden by .tfvars.
+  default     = "dev"
 }
 
 variable "aws_region" {
-  description = "AWS region for Lambda deployment. Expected from .tfvars file."
-  type        = string
-  # No default; fundamental setting.
-}
-
-variable "aws_account_id" {
-  description = "AWS Account ID. Typically from .tfvars; declared here to silence warnings."
+  description = "AWS region for deployment."
   type        = string
 }
 
 variable "github_repository" {
-  description = "GitHub repository (e.g., org/repo). Typically from .tfvars; declared here to silence warnings."
+  description = "The GitHub repository (e.g., your-org/your-repo) allowed to assume this role."
   type        = string
 }
 
-# --- Lambda-specific variables ---
 variable "lambda_name_suffix" {
   description = "Suffix for the Lambda function name, used to construct the full name."
   type        = string
@@ -58,3 +50,8 @@ variable "lambda_timeout" {
   default     = 30
 }
 
+variable "lambda_architecture" {
+  description = "Lambda function architecture. Should match the Docker build architecture."
+  type        = string
+  default     = "arm64"
+}

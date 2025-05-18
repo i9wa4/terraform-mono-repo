@@ -4,30 +4,34 @@ provider "aws" {
     tags = {
       Project     = var.project_name
       Environment = var.environment
-      LambdaName  = var.lambda_name_suffix
+      AppName     = var.app_name
       ManagedBy   = "Terraform"
     }
   }
 }
 
 locals {
-  effective_function_name = "${var.project_name}-${var.environment}-${var.lambda_name_suffix}"
+  lambda_function_name = "${var.project_name}-${var.environment}-${var.app_name}"
 }
 
 data "aws_caller_identity" "current" {}
 
+resource "aws_cloudwatch_log_group" "lambda_log_group" {
+  name              = "/aws/lambda/${local.lambda_function_name}"
+  retention_in_days = var.log_retention_days != null ? var.log_retention_days : 7
+}
+
 resource "aws_ecr_repository" "lambda_ecr_repo" {
-  name                 = local.effective_function_name
+  name                 = local.lambda_function_name
   image_tag_mutability = "IMMUTABLE"
 
   image_scanning_configuration {
     scan_on_push = true
   }
-  # Tags are handled by the provider's default_tags.
 }
 
 resource "aws_iam_role" "lambda_exec_role" {
-  name = "${local.effective_function_name}-exec-role"
+  name = "${local.lambda_function_name}-exec-role"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17",
@@ -41,12 +45,11 @@ resource "aws_iam_role" "lambda_exec_role" {
       }
     ]
   })
-  # Tags are handled by the provider's default_tags.
 }
 
 resource "aws_iam_policy" "lambda_exec_policy" {
-  name        = "${local.effective_function_name}-exec-policy"
-  description = "IAM policy for Lambda ${local.effective_function_name} to pull from ECR and write to CloudWatch Logs"
+  name        = "${local.lambda_function_name}-exec-policy"
+  description = "IAM policy for Lambda ${local.lambda_function_name} to pull from ECR and write to CloudWatch Logs"
 
   policy = jsonencode({
     Version = "2012-10-17",
@@ -56,7 +59,7 @@ resource "aws_iam_policy" "lambda_exec_policy" {
           "logs:CreateLogGroup"
         ],
         Effect   = "Allow",
-        Resource = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${local.effective_function_name}:*"
+        Resource = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${local.lambda_function_name}:*"
       },
       {
         Action = [
@@ -64,7 +67,7 @@ resource "aws_iam_policy" "lambda_exec_policy" {
           "logs:PutLogEvents"
         ],
         Effect   = "Allow",
-        Resource = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${local.effective_function_name}:log-stream:*"
+        Resource = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${local.lambda_function_name}:log-stream:*"
       },
       {
         Action = [
@@ -83,8 +86,6 @@ resource "aws_iam_policy" "lambda_exec_policy" {
       }
     ]
   })
-  # Tags for the aws_iam_policy resource are handled by the provider's default_tags.
-  # The policy content (JSON) itself does not have tags.
 }
 
 resource "aws_iam_role_policy_attachment" "lambda_exec_policy_attachment" {
@@ -92,23 +93,15 @@ resource "aws_iam_role_policy_attachment" "lambda_exec_policy_attachment" {
   policy_arn = aws_iam_policy.lambda_exec_policy.arn
 }
 
-resource "aws_cloudwatch_log_group" "lambda_log_group" {
-  name              = "/aws/lambda/${local.effective_function_name}"
-  retention_in_days = var.log_retention_days != null ? var.log_retention_days : 7
-  # Tags are handled by the provider's default_tags.
-}
-
 resource "aws_lambda_function" "this" {
-  function_name = local.effective_function_name
+  function_name = local.lambda_function_name
   role          = aws_iam_role.lambda_exec_role.arn
   package_type  = "Image"
   image_uri     = var.image_uri
-  architectures = ["arm64"] # Specify the architecture to match the Docker build
+  architectures = var.lambda_architecture
 
-  memory_size = var.lambda_memory_size != null ? var.lambda_memory_size : 256
-  timeout     = var.lambda_timeout != null ? var.lambda_timeout : 30
-
-  # Tags are handled by the provider's default_tags.
+  memory_size = var.lambda_memory_size
+  timeout     = var.lambda_timeout
 
   depends_on = [aws_cloudwatch_log_group.lambda_log_group]
 }

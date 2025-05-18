@@ -9,8 +9,10 @@ provider "aws" {
   }
 }
 
-resource "aws_iam_role" "github_actions_oidc_role" {
-  name = var.github_actions_role_name
+data "aws_caller_identity" "current" {}
+
+resource "aws_iam_role" "terraform_hands_on_lambda_ecr" {
+  name = var.project_name
   assume_role_policy = jsonencode({
     Version = "2012-10-17",
     Statement = [
@@ -29,10 +31,9 @@ resource "aws_iam_role" "github_actions_oidc_role" {
       }
     ]
   })
-  # Tags are handled by the provider's default_tags.
 }
 
 resource "aws_iam_role_policy_attachment" "github_actions_oidc_role_admin_attachment" {
-  role       = aws_iam_role.github_actions_oidc_role.name
-  policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess" # Consider a more restrictive policy
+  role       = aws_iam_role.terraform_hands_on_lambda_ecr.name
+  policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess" # TODO: Replace with a more specific policy for production use.
 }

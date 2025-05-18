@@ -2,7 +2,7 @@ SHELL := /usr/bin/env bash
 .SHELLFLAGS := -o errexit -o nounset -o pipefail -o posix -c
 .DEFAULT_GOAL := help
 
-# all targets are phony
+# All targets are phony
 .PHONY: $(shell grep -E '^[a-zA-Z_-]+:' $(MAKEFILE_LIST) | sed 's/:.*//')
 
 help:  ## print this help
@@ -11,10 +11,46 @@ help:  ## print this help
 	@echo 'Targets:'
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
+# --------------------
+# Variables
+#
+# Required for backend
+BACKEND_S3_BUCKET ?= i9wa4-terraform
+PROJECT_NAME ?= hands-on-lambda-ecr
+AWS_REGION ?= ap-northeast-1
+
+# Common
+ENV ?= dev
+COMMON_TF_DIR := terraform
+COMMON_TF_CMD_ARGS := '-var-file=../environments/$(ENV)/terraform.tfvars'
+AWS_ACCOUNT_ID := $(strip $(shell terraform -chdir=$(COMMON_TF_DIR) output -raw aws_account_id 2>/dev/null))
+
+# Lambda
+ECR_REGISTRY ?= $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com
+
+# ----------------------
+# Public Targets
+#
+common-plan: ## [common] terraform plan
+	$(MAKE) plan TARGET_TF_DIR=$(COMMON_TF_DIR) TF_CMD_ARGS=$(COMMON_TF_CMD_ARGS)
+
+common-apply: ## [common] terraform apply
+	$(MAKE) apply TARGET_TF_DIR=$(COMMON_TF_DIR) TF_CMD_ARGS=$(COMMON_TF_CMD_ARGS)
+
+hello-world-plan: ## [hello-world] terraform plan
+	$(MAKE) lambda-plan APP_NAME=hello-world
+
+hello-world-apply: ## [hello-world] terraform apply
+	$(MAKE) lambda-apply APP_NAME=hello-world
+
+# ----------------------
+# Private Targets
+#
 init:
 	terraform -chdir=$(TARGET_TF_DIR) init -reconfigure \
-		-backend-config="bucket=$(TERRAFORM_BACKEND_S3_BUCKET)" \
-		-backend-config="key=hands-on-lambda-ecr/$(TARGET_TF_DIR)/terraform.tfstate"
+		-backend-config="region=$(AWS_REGION)" \
+		-backend-config="bucket=$(BACKEND_S3_BUCKET)" \
+		-backend-config="key=$(PROJECT_NAME)/$(TARGET_TF_DIR)/terraform.tfstate"
 
 validate: init
 	terraform -chdir=$(TARGET_TF_DIR) validate
@@ -38,43 +74,15 @@ ecr-build-push: ecr-login
 	docker build -t $(ECR_IMAGE_URI) $(APP_ROOT_DIR) --platform=linux/arm64 --provenance=false
 	docker push $(ECR_IMAGE_URI)
 
-
-# Common
-TERRAFORM_BACKEND_S3_BUCKET ?= i9wa4-terraform
-ENV ?= dev
-COMMON_DIR := terraform
-ENVIRONMENTS_BASE_DIR := environments
-COMMON_TF_DIR := $(COMMON_DIR)
-COMMON_TF_CMD_ARGS := '-var-file=../$(ENVIRONMENTS_BASE_DIR)/$(ENV)/terraform.tfvars'
-TF_OUTPUT_AWS_ACCOUNT_ID := $(strip $(shell terraform -chdir=$(COMMON_TF_DIR) output -raw aws_account_id 2>/dev/null))
-TF_OUTPUT_AWS_REGION := $(strip $(shell terraform -chdir=$(COMMON_TF_DIR) output -raw aws_region 2>/dev/null))
-AWS_REGION := $(TF_OUTPUT_AWS_REGION)
-ECR_AWS_ACCOUNT_ID := $(TF_OUTPUT_AWS_ACCOUNT_ID)
-ECR_REGISTRY ?= $(ECR_AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com
-
-common-plan: ## [common] Plan Terraform
-	$(MAKE) plan TARGET_TF_DIR=$(COMMON_TF_DIR) TF_CMD_ARGS=$(COMMON_TF_CMD_ARGS)
-
-common-apply: ## [common] Apply Terraform (prompts)
-	$(MAKE) apply TARGET_TF_DIR=$(COMMON_TF_DIR) TF_CMD_ARGS=$(COMMON_TF_CMD_ARGS)
-
-
-# Lambda
 lambda-plan:
 	$(MAKE) plan \
 		TARGET_TF_DIR=lambdas/$(APP_NAME) \
-		TF_CMD_ARGS='-var-file=../../$(ENVIRONMENTS_BASE_DIR)/$(ENV)/terraform.tfvars -var='image_uri=$(ECR_REGISTRY)/hands-on-lambda-ecr-$(ENV)-$(APP_NAME):$(shell git log -1 --format=%h -- lambdas/$(APP_NAME) 2>/dev/null | tr -d '[:space:]')''
+		TF_CMD_ARGS='-var-file=../../environments/$(ENV)/terraform.tfvars -var='image_uri=$(ECR_REGISTRY)/$(PROJECT_NAME)-$(ENV)-$(APP_NAME):$(shell git log -1 --format=%h -- lambdas/$(APP_NAME) 2>/dev/null | tr -d '[:space:]')''
 
 lambda-apply:
 	$(MAKE) ecr-build-push \
-		ECR_IMAGE_URI=$(ECR_REGISTRY)/hands-on-lambda-ecr-$(ENV)-$(APP_NAME):$(shell git log -1 --format=%h -- lambdas/$(APP_NAME) 2>/dev/null | tr -d '[:space:]') \
+		ECR_IMAGE_URI=$(ECR_REGISTRY)/$(PROJECT_NAME)-$(ENV)-$(APP_NAME):$(shell git log -1 --format=%h -- lambdas/$(APP_NAME) 2>/dev/null | tr -d '[:space:]') \
 		APP_ROOT_DIR=lambdas/$(APP_NAME)
 	$(MAKE) apply \
 		TARGET_TF_DIR=lambdas/$(APP_NAME) \
-		TF_CMD_ARGS='-var-file=../../$(ENVIRONMENTS_BASE_DIR)/$(ENV)/terraform.tfvars -var='image_uri=$(ECR_REGISTRY)/hands-on-lambda-ecr-$(ENV)-$(APP_NAME):$(shell git log -1 --format=%h -- lambdas/$(APP_NAME) 2>/dev/null | tr -d '[:space:]')''
-
-hello-world-plan: ## [hello-world] Plan Terraform
-	$(MAKE) lambda-plan APP_NAME=hello-world
-
-hello-world-apply: ## [hello-world] Apply Terraform (prompts)
-	$(MAKE) lambda-apply APP_NAME=hello-world
+		TF_CMD_ARGS='-var-file=../../environments/$(ENV)/terraform.tfvars -var='image_uri=$(ECR_REGISTRY)/$(PROJECT_NAME)-$(ENV)-$(APP_NAME):$(shell git log -1 --format=%h -- lambdas/$(APP_NAME) 2>/dev/null | tr -d '[:space:]')''
