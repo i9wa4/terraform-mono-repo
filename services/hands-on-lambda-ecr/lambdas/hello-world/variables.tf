@@ -23,7 +23,7 @@ variable "common_tags" {
   default = {
     Project     = "hands-on-lambda-ecr" # Default project tag.
     ManagedBy   = "Terraform"
-    Environment = "dev" # Default environment tag.
+    # The Environment tag will be explicitly set using var.environment in default_tags.
   }
 }
 
