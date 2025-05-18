@@ -16,7 +16,7 @@ module "lambda_service" {
   source = "../../modules/lambda_service" # Relative path to the module
 
   function_name      = "${var.project_name}-${var.environment}-${var.lambda_name_suffix}"
-  image_uri          = var.image_uri       # This will be passed by Makefile/CI
+  image_uri          = var.image_uri # This will be passed by Makefile/CI
   aws_region         = var.aws_region
   log_retention_days = var.log_retention_days
   lambda_memory_size = var.lambda_memory_size

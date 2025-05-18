@@ -9,9 +9,9 @@ terraform {
   }
 
   backend "s3" {
-    bucket  = "i9wa4-terraform" # Replace with your S3 bucket name
+    bucket  = "i9wa4-terraform"                                           # Replace with your S3 bucket name
     key     = "hands-on-lambda-ecr/lambdas/hello_world/terraform.tfstate" # Unique key for this lambda's state
-    region  = "ap-northeast-1"  # Replace with your S3 bucket region
+    region  = "ap-northeast-1"                                            # Replace with your S3 bucket region
     encrypt = true
     # use_lockfile = true # This is a CLI argument for init, not a backend config option
   }
