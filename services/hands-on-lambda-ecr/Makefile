@@ -61,7 +61,6 @@ check_cicd_params: ## Check if CI/CD Terraform directory and environment tfvars 
 
 
 # --- Lambda Specific Docker Targets ---
-.PHONY: lambda-ecr-login lambda-build-push
 lambda-ecr-login: ## Log in to AWS ECR
 	@echo "Logging in to ECR registry $(ECR_REGISTRY) in region $(AWS_REGION)"
 	aws ecr get-login-password --region $(AWS_REGION) | docker login --username AWS --password-stdin $(ECR_REGISTRY)
@@ -85,7 +84,6 @@ else
     PRE_REQ_CHECK = check_cicd_params
 endif
 
-.PHONY: init validate plan apply apply-auto destroy destroy-auto
 init: $(PRE_REQ_CHECK) ## Initialize Terraform for the specified component (lambda or cicd)
 	@echo "==> Initializing Terraform for component: $(COMPONENT)$(if $(filter lambda,$(COMPONENT)), (lambda: $(LAMBDA)),) in env: $(ENV) from $(TARGET_TF_DIR)"
 	terraform -chdir=$(TARGET_TF_DIR) init -backend-config="key=hands-on-lambda-ecr/$(TARGET_TF_DIR)/terraform.tfstate"
