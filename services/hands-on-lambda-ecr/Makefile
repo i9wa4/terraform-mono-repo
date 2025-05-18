@@ -14,7 +14,7 @@ COMPONENT ?= lambda # 'lambda' or 'cicd'
 
 # Base directories relative to this Makefile's location
 LAMBDAS_BASE_DIR := lambdas
-CICD_DIR := terraform_cicd
+CICD_DIR := terraform # Changed from terraform_cicd
 ENVIRONMENTS_BASE_DIR := environments
 
 # Calculated paths
