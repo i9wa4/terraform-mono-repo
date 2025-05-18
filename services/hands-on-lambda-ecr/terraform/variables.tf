@@ -31,7 +31,7 @@ variable "common_tags" {
   default = {
     Project   = "hands-on-lambda-ecr"
     ManagedBy = "Terraform"
-    # Environment = "common" # This can be overridden by environment-specific .tfvars
+    # Environment tag can be added here or overridden by environment-specific .tfvars
   }
 }
 

@@ -1,42 +1,40 @@
-# --- Common variables, often sourced from a shared .tfvars file ---
+# --- Common variables (often sourced from a shared .tfvars file) ---
 variable "project_name" {
-  description = "Name of the project. This is used to construct resource names and tags."
+  description = "Name of the project. Used for resource names and tags."
   type        = string
-  default     = "hands-on-lambda-ecr" # Default value, can be overridden by .tfvars
+  default     = "hands-on-lambda-ecr" # Can be overridden by .tfvars.
 }
 
 variable "environment" {
-  description = "Deployment environment (e.g., dev, prod). This is used for naming and tagging."
+  description = "Deployment environment (e.g., dev, prod). Used for naming and tagging."
   type        = string
-  default     = "dev" # Default value, can be overridden by .tfvars
+  default     = "dev" # Can be overridden by .tfvars.
 }
 
 variable "aws_region" {
-  description = "AWS region for the Lambda deployment. This should be provided by the .tfvars file."
+  description = "AWS region for Lambda deployment. Expected from .tfvars file."
   type        = string
-  # No default, as this is a fundamental setting expected from the environment configuration.
+  # No default; fundamental setting.
 }
 
 variable "common_tags" {
-  description = "Common tags to apply to resources, typically passed from a central .tfvars file."
+  description = "Common tags for resources. Merged with lambda-specific tags."
   type        = map(string)
   default     = {
-    Project     = "hands-on-lambda-ecr" # Default project tag
+    Project     = "hands-on-lambda-ecr" # Default project tag.
     ManagedBy   = "Terraform"
-    Environment = "dev"                 # Default environment tag
+    Environment = "dev"                 # Default environment tag.
   }
 }
 
 variable "aws_account_id" {
-  description = "AWS Account ID. This is typically provided by the environment's .tfvars file."
+  description = "AWS Account ID. Typically from .tfvars; declared here to silence warnings."
   type        = string
-  # This variable is declared to silence warnings if it's in the .tfvars file but not directly used by this specific lambda configuration.
 }
 
 variable "github_repository" {
-  description = "The GitHub repository (e.g., your-org/your-repo). This is typically provided by the environment's .tfvars file."
+  description = "GitHub repository (e.g., org/repo). Typically from .tfvars; declared here to silence warnings."
   type        = string
-  # This variable is declared to silence warnings if it's in the .tfvars file but not directly used by this specific lambda configuration.
 }
 
 # --- Lambda-specific variables ---
@@ -47,9 +45,9 @@ variable "lambda_name_suffix" {
 }
 
 variable "image_uri" {
-  description = "The ECR image URI for the Lambda function. This should be provided at deployment time."
+  description = "ECR image URI for the Lambda. Provided by Makefile at deployment."
   type        = string
-  # No default, must be provided by the caller (e.g., Makefile)
+  # No default.
 }
 
 variable "log_retention_days" {

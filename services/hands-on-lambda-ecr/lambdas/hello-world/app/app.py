@@ -13,7 +13,6 @@ def handler(event, context):
     python_version = sys.version
     message = f"Hello from AWS Lambda using Python {python_version} in a container!"
 
-    # レスポンスは Lambda が期待する JSON 形式である必要があります
     return {
         "statusCode": 200,
         "headers": {"Content-Type": "application/json"},

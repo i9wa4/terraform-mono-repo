@@ -25,7 +25,7 @@ resource "aws_ecr_repository" "lambda_ecr_repo" {
   image_scanning_configuration {
     scan_on_push = true
   }
-  # Tags are handled by the provider's default_tags
+  # Tags are handled by the provider's default_tags.
 }
 
 resource "aws_iam_role" "lambda_exec_role" {
@@ -43,7 +43,7 @@ resource "aws_iam_role" "lambda_exec_role" {
       }
     ]
   })
-  # Tags are handled by the provider's default_tags
+  # Tags are handled by the provider's default_tags.
 }
 
 resource "aws_iam_policy" "lambda_exec_policy" {
@@ -85,8 +85,8 @@ resource "aws_iam_policy" "lambda_exec_policy" {
       }
     ]
   })
-  # Tags are handled by the provider's default_tags for the policy resource itself, if applicable by AWS.
-  # The policy content itself does not have tags.
+  # Tags for the aws_iam_policy resource are handled by the provider's default_tags.
+  # The policy content (JSON) itself does not have tags.
 }
 
 resource "aws_iam_role_policy_attachment" "lambda_exec_policy_attachment" {
@@ -97,7 +97,7 @@ resource "aws_iam_role_policy_attachment" "lambda_exec_policy_attachment" {
 resource "aws_cloudwatch_log_group" "lambda_log_group" {
   name              = "/aws/lambda/${local.effective_function_name}"
   retention_in_days = var.log_retention_days != null ? var.log_retention_days : 7
-  # Tags are handled by the provider's default_tags
+  # Tags are handled by the provider's default_tags.
 }
 
 resource "aws_lambda_function" "this" {
@@ -109,7 +109,7 @@ resource "aws_lambda_function" "this" {
   memory_size = var.lambda_memory_size != null ? var.lambda_memory_size : 256
   timeout     = var.lambda_timeout != null ? var.lambda_timeout : 30
 
-  # Tags are handled by the provider's default_tags
+  # Tags are handled by the provider's default_tags.
 
   depends_on = [aws_cloudwatch_log_group.lambda_log_group]
 }
