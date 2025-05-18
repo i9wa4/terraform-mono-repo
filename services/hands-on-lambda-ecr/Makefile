@@ -51,12 +51,8 @@ DEV_COMMON_TF_CMD_ARGS := -var-file=../$(ENVIRONMENTS_BASE_DIR)/dev/terraform.tf
 TF_OUTPUT_AWS_ACCOUNT_ID := $(strip $(shell terraform -chdir=$(DEV_COMMON_TF_DIR) output -raw aws_account_id 2>/dev/null))
 TF_OUTPUT_AWS_REGION := $(strip $(shell terraform -chdir=$(DEV_COMMON_TF_DIR) output -raw aws_region 2>/dev/null))
 
-# Set AWS_REGION: Use value from Terraform output if available, otherwise use environment variable or fallback.
-AWS_REGION := $(if $(TF_OUTPUT_AWS_REGION),$(TF_OUTPUT_AWS_REGION),$(AWS_REGION))
-AWS_REGION ?= ap-northeast-1 # Fallback if not set by TF output or environment.
-
-# Set AWS_ACCOUNT_ID for ECR: Use value from Terraform output if available, otherwise use a placeholder.
-ECR_AWS_ACCOUNT_ID := $(if $(TF_OUTPUT_AWS_ACCOUNT_ID),$(TF_OUTPUT_AWS_ACCOUNT_ID),YOUR_AWS_ACCOUNT_ID) # Placeholder if TF output not available.
+AWS_REGION := $(TF_OUTPUT_AWS_REGION)
+ECR_AWS_ACCOUNT_ID := $(TF_OUTPUT_AWS_ACCOUNT_ID)
 
 # Docker image details
 ECR_REGISTRY ?= $(ECR_AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com
