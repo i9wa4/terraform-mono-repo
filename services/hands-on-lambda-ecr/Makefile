@@ -104,7 +104,9 @@ _EXPECTED_HW_ECR_REPO_NAME := hands-on-lambda-ecr-dev-hello-world
 _DEFAULT_DEV_HW_IMAGE_URI_WITH_SPECIFIC_TAG := $(ECR_REGISTRY)/$(_EXPECTED_HW_ECR_REPO_NAME):$(DEV_HW_IMAGE_TAG)
 
 # Use LAMBDA_IMAGE_URI if provided by the user, otherwise use the hello-world specific default URI.
-ACTUAL_DEV_HW_LAMBDA_IMAGE_URI := $(or $(LAMBDA_IMAGE_URI),$(_DEFAULT_DEV_HW_IMAGE_URI_WITH_SPECIFIC_TAG)) # Note: ECR_REGISTRY must be correctly set.
+_ACTUAL_DEV_HW_LAMBDA_IMAGE_URI_RAW := $(or $(LAMBDA_IMAGE_URI),$(_DEFAULT_DEV_HW_IMAGE_URI_WITH_SPECIFIC_TAG))
+# Strip whitespace and then remove any double quotes to prevent malformed arguments.
+ACTUAL_DEV_HW_LAMBDA_IMAGE_URI := $(subst ",,$(strip $(_ACTUAL_DEV_HW_LAMBDA_IMAGE_URI_RAW))) # Note: ECR_REGISTRY must be correctly set.
 DEV_HW_TF_CMD_ARGS := -var-file=../../$(ENVIRONMENTS_BASE_DIR)/dev/terraform.tfvars -var="image_uri=$(ACTUAL_DEV_HW_LAMBDA_IMAGE_URI)"
 
 dev-hello-world-plan: ## [dev hello-world] Plan Terraform
@@ -113,12 +115,12 @@ dev-hello-world-plan: ## [dev hello-world] Plan Terraform
 # Internal target to apply ECR repository, IAM, and CloudWatch prerequisites for hello-world
 _dev-hello-world-apply-prereqs:
 	@echo "Applying ECR repository, IAM, and CloudWatch prerequisites for hello-world..."
-	$(MAKE) apply TARGET_TF_DIR=$(DEV_HW_LAMBDA_TF_DIR) TF_CMD_ARGS='$(strip $(DEV_HW_TF_CMD_ARGS)) \
+	$(MAKE) apply TARGET_TF_DIR=$(DEV_HW_LAMBDA_TF_DIR) TF_CMD_ARGS="$(DEV_HW_TF_CMD_ARGS) \
 		-target=aws_ecr_repository.lambda_ecr_repo \
 		-target=aws_iam_role.lambda_exec_role \
 		-target=aws_iam_policy.lambda_exec_policy \
 		-target=aws_iam_role_policy_attachment.lambda_exec_policy_attachment \
-		-target=aws_cloudwatch_log_group.lambda_log_group'
+		-target=aws_cloudwatch_log_group.lambda_log_group"
 
 # Internal target to build and push the hello-world image
 _dev-hello-world-push-image:
