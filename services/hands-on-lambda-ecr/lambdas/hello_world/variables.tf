@@ -1,20 +1,3 @@
-variable "aws_region" {
-  description = "AWS region for deployment."
-  type        = string
-}
-
-variable "project_name" {
-  description = "Name of the project."
-  type        = string
-  default     = "hands-on-lambda-ecr"
-}
-
-variable "environment" {
-  description = "Deployment environment (e.g., dev, prod)."
-  type        = string
-  default     = "dev"
-}
-
 variable "lambda_name_suffix" {
   description = "Suffix for the Lambda function name, used to construct the full name."
   type        = string
@@ -43,23 +26,4 @@ variable "lambda_timeout" {
   description = "Lambda function timeout in seconds."
   type        = number
   default     = 30
-}
-
-variable "common_tags" {
-  description = "Common tags to apply to all resources."
-  type        = map(string)
-  default     = {}
-}
-
-variable "aws_account_id" {
-  description = "AWS Account ID. This is typically provided by the environment's .tfvars file."
-  type        = string
-  # This variable is declared to silence warnings if it's in the .tfvars file but not directly used by this specific lambda configuration.
-  # If it were needed, it would be passed to a module or used directly.
-}
-
-variable "github_repository" {
-  description = "The GitHub repository (e.g., your-org/your-repo). This is typically provided by the environment's .tfvars file."
-  type        = string
-  # This variable is declared to silence warnings if it's in the .tfvars file but not directly used by this specific lambda configuration.
 }
