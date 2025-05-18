@@ -24,19 +24,19 @@ init:
 		-backend-config="bucket=$(TERRAFORM_BACKEND_S3_BUCKET)" \
 		-backend-config="key=hands-on-lambda-ecr/$(TARGET_TF_DIR)/terraform.tfstate"
 
-validate:
+validate: init
 	terraform -chdir=$(TARGET_TF_DIR) validate
 
-plan: init validate
+plan: validate
 	terraform -chdir=$(TARGET_TF_DIR) plan $(TF_CMD_ARGS)
 
-apply: init validate
+apply: plan
 	terraform -chdir=$(TARGET_TF_DIR) apply -auto-approve $(TF_CMD_ARGS)
 
-plan-destroy: init validate
+plan-destroy: validate
 	terraform -chdir=$(TARGET_TF_DIR) plan -destroy $(TF_CMD_ARGS)
 
-destroy: init
+destroy: plan-destroy
 	terraform -chdir=$(TARGET_TF_DIR) destroy -auto-approv e$(TF_CMD_ARGS)
 
 # --- Configuration ---
@@ -138,7 +138,6 @@ dev-hello-world-plan: ## [dev hello-world] Plan Terraform
 	$(MAKE) plan TARGET_TF_DIR=$(DEV_HW_LAMBDA_TF_DIR) TF_CMD_ARGS="$(DEV_HW_TF_CMD_ARGS)"
 
 # Internal target to apply ECR repository, IAM, and CloudWatch prerequisites for hello-world
-.PHONY: _dev-hello-world-apply-prereqs
 _dev-hello-world-apply-prereqs:
 	@echo "Applying ECR repository, IAM, and CloudWatch prerequisites for hello-world..."
 	$(MAKE) apply TARGET_TF_DIR=$(DEV_HW_LAMBDA_TF_DIR) TF_CMD_ARGS='$(strip $(DEV_HW_TF_CMD_ARGS)) \
@@ -149,7 +148,6 @@ _dev-hello-world-apply-prereqs:
 		-target=aws_cloudwatch_log_group.lambda_log_group'
 
 # Internal target to build and push the hello-world image
-.PHONY: _dev-hello-world-push-image
 _dev-hello-world-push-image:
 	@echo "Building and pushing hello-world image $(ECR_REGISTRY)/hello-world:$(DEV_HW_IMAGE_TAG)..."
 	$(MAKE) lambda-build-push LAMBDA=hello-world IMAGE_TAG=$(DEV_HW_IMAGE_TAG)
