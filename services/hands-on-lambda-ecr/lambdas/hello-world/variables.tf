@@ -20,14 +20,14 @@ variable "github_repository" {
   type        = string
 }
 
-variable "lambda_name_suffix" {
-  description = "Suffix for the Lambda function name, used to construct the full name."
+variable "app_name" {
+  description = "The name of the application."
   type        = string
   default     = "hello-world"
 }
 
 variable "image_uri" {
-  description = "ECR image URI for the Lambda. Provided by Makefile at deployment."
+  description = "ECR image URI for the Lambda. Provided in deployment."
   type        = string
   # No default.
 }
