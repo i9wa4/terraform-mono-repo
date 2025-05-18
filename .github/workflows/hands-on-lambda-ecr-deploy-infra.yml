@@ -1,2 +1,77 @@
-name: hands-on-lambda-ecr-deploy-infra
-run-name: ${{ github.event_name }} on ${{ github.ref_name }} by @${{ github.actor }}
+# yaml-language-server: $schema=https://json.schemastore.org/github-workflow.json
+
+name: Deploy Common Infrastructure
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment for common infrastructure (e.g., dev, stg, prod)"
+        required: true
+        default: "dev"
+        type: choice
+        options:
+          - dev
+          # Add other environments if needed, e.g., stg, prod
+          # - stg
+          # - prod
+  pull_request:
+    paths:
+      - "services/hands-on-lambda-ecr/terraform/**"
+      - "services/hands-on-lambda-ecr/environments/**"
+      - ".github/workflows/hands-on-lambda-ecr-deploy-infra.yml"
+
+env:
+  AWS_REGION: "ap-northeast-1"
+  TF_WORKING_DIR: "./services/hands-on-lambda-ecr"
+  # This secret must be defined in GitHub repository settings
+  TF_BACKEND_S3_BUCKET: ${{ secrets.TF_BACKEND_S3_BUCKET_NAME }}
+  PROJECT_NAME: "hands-on-lambda-ecr" # Matches Makefile default
+
+permissions:
+  id-token: write # Required for aws-actions/configure-aws-credentials
+  contents: read # Required for actions/checkout
+  pull-requests: write # Required for adding plan comments (optional)
+
+jobs:
+  deploy-common-infrastructure:
+    name: "Deploy Common Infra (${{ github.event.inputs.environment || 'PR' }})"
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment }} # Links to GitHub Environment for protection rules/secrets
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          # Role for Terraform to assume. This role is created by this common infrastructure workflow.
+          # For the very first apply, you might need to use a more privileged role or run it manually.
+          # Subsequent runs will use the OIDC role created here.
+          # Ensure AWS_ACCOUNT_ID secret is set in GitHub.
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ env.PROJECT_NAME }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        # Terraform version is managed by .terraform-version file or Makefile's default.
+
+      - name: Terraform Common Plan
+        id: plan
+        env:
+          ENV: ${{ github.event.inputs.environment || 'dev' }} # Default to 'dev' for PRs if not specified
+          # GITHUB_REPOSITORY is used by the common terraform module for OIDC role condition
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          make common-plan
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+      - name: Terraform Common Apply (Manual Trigger Only)
+        if: github.event_name == 'workflow_dispatch' && github.event.inputs.environment
+        env:
+          ENV: ${{ github.event.inputs.environment }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          make common-apply
+        working-directory: ${{ env.TF_WORKING_DIR }}
