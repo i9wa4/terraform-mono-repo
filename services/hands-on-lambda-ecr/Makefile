@@ -82,5 +82,5 @@ lambda-apply:
 hello-world-plan: ## [hello-world] Plan Terraform
 	$(MAKE) lambda-plan APP_NAME=hello-world
 
-hello-world-apply: hello-world-pre-apply ## [hello-world] Apply Terraform (prompts)
+hello-world-apply: ## [hello-world] Apply Terraform (prompts)
 	$(MAKE) lambda-apply APP_NAME=hello-world
