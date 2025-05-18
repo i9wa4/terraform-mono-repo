@@ -53,7 +53,7 @@ lambda-build-push: lambda-ecr-login ## Build and push Docker image for a lambda 
 # These targets expect TARGET_TF_DIR and TF_CMD_ARGS to be set by the calling dedicated target.
 init: ## [Internal] Initialize Terraform for the active component and environment
 	@echo "==> Initializing Terraform in $(TARGET_TF_DIR) for S3 key: hands-on-lambda-ecr/$(TARGET_TF_DIR)/terraform.tfstate"
-	terraform -chdir=$(TARGET_TF_DIR) init -backend-config="key=hands-on-lambda-ecr/$(TARGET_TF_DIR)/terraform.tfstate"
+	terraform -chdir=$(TARGET_TF_DIR) init -reconfigure -backend-config="key=hands-on-lambda-ecr/$(TARGET_TF_DIR)/terraform.tfstate"
 
 validate: ## [Internal] Validate Terraform configuration for the active component
 	@echo "==> Validating Terraform in $(TARGET_TF_DIR)"
