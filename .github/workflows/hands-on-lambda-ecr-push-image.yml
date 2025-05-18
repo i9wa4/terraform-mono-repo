@@ -16,6 +16,10 @@ on:
 env:
   AWS_REGION: "ap-northeast-1"
   ECR_REPOSITORY_BASE_NAME: "hands-on-lambda-ecr" # Base name, env suffix will be added
+  LAMBDA_APP_NAME: "hello-world" # Name of the application/lambda
+  TF_WORKING_DIR: "./services/hands-on-lambda-ecr"
+  # Ensure this secret is defined in your GitHub repository settings for Makefile's ecr-login if common infra isn't always present
+  # TF_BACKEND_S3_BUCKET: ${{ secrets.TF_BACKEND_S3_BUCKET_NAME }} 
 
 permissions:
   id-token: write # For aws-actions/configure-aws-credentials
@@ -43,15 +47,30 @@ jobs:
       - name: Build, tag, and push image to Amazon ECR
         id: build-image
         env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REGISTRY_URL: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
-          FULL_ECR_REPOSITORY_NAME: ${{ env.ECR_REPOSITORY_BASE_NAME }}-${{ github.event.inputs.environment }}
-          # Pass environment to make, can be used in Makefile if needed
-          ENVIRONMENT: ${{ github.event.inputs.environment }}
-        working-directory: ./services/hands-on-lambda-ecr/${{ github.event.inputs.environment }}/app
+          # Construct the full ECR repository name as expected by the lambda's ECR resource
+          # PROJECT_NAME-ENV-APP_NAME, e.g., hands-on-lambda-ecr-dev-hello-world
+          TARGET_ECR_REPOSITORY_NAME: "${{ env.ECR_REPOSITORY_BASE_NAME }}-${{ github.event.inputs.environment }}-${{ env.LAMBDA_APP_NAME }}"
+          # APP_ROOT_DIR is the Docker build context directory relative to the Makefile
+          APP_ROOT_DIR_MAKEFILE: "lambdas/${{ env.LAMBDA_APP_NAME }}"
+          # Variables for Makefile
+          ENV: ${{ github.event.inputs.environment }}
+          PROJECT_NAME: ${{ env.ECR_REPOSITORY_BASE_NAME }} # Makefile uses PROJECT_NAME
+          APP_NAME: ${{ env.LAMBDA_APP_NAME }} # Makefile uses APP_NAME
         run: |
-          make build-push \
-            ECR_REGISTRY="$ECR_REGISTRY" \
-            FULL_ECR_REPOSITORY_NAME="$FULL_ECR_REPOSITORY_NAME" \
-            IMAGE_TAG="$IMAGE_TAG" \
-            ENVIRONMENT="$ENVIRONMENT"
+          # ECR_IMAGE_URI is the variable expected by 'make ecr-build-push'
+          # Format: <registry>/<repository_name>:<tag>
+          export ECR_IMAGE_URI="${ECR_REGISTRY_URL}/${TARGET_ECR_REPOSITORY_NAME}:${IMAGE_TAG}"
+          
+          # APP_ROOT_DIR is also expected by 'make ecr-build-push'
+          export APP_ROOT_DIR="${APP_ROOT_DIR_MAKEFILE}"
+
+          echo "ECR_IMAGE_URI: ${ECR_IMAGE_URI}"
+          echo "APP_ROOT_DIR: ${APP_ROOT_DIR}"
+          
+          # Call the Makefile target
+          # AWS_REGION is already in job env. ECR_REGISTRY is used by ecr-build-push via ECR_IMAGE_URI.
+          # AWS_ACCOUNT_ID might be needed by ecr-login if called by make, ensure credentials provide it or set it.
+          make ecr-build-push
+        working-directory: ${{ env.TF_WORKING_DIR }}

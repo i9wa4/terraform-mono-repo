@@ -16,8 +16,11 @@ on:
 env:
   AWS_REGION: "ap-northeast-1"
   ECR_REPOSITORY_BASE_NAME: "hands-on-lambda-ecr" # Base name, env suffix will be added
-  LAMBDA_FUNCTION_BASE_NAME: "hello-world-python-container" # Base name, env suffix will be added
+  LAMBDA_APP_NAME: "hello-world" # Corresponds to APP_NAME in Makefile for hello-world lambda
   TF_VERSION: "1.11.4" # Terraformのバージョンを固定 (例: "1.8.4")
+  TF_WORKING_DIR: "./services/hands-on-lambda-ecr"
+  # Ensure this secret is defined in your GitHub repository settings
+  TF_BACKEND_S3_BUCKET: ${{ secrets.TF_BACKEND_S3_BUCKET_NAME }} # Example: my-terraform-backend-bucket
 
 permissions:
   id-token: write
@@ -47,26 +50,17 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
-      - name: Terraform Init
-        run: make tf-init ENVIRONMENT=${{ github.event.inputs.environment }}
-        working-directory: ./services/hands-on-lambda-ecr # Makefile is in this directory
-
-      - name: Terraform Validate
-        run: make tf-validate ENVIRONMENT=${{ github.event.inputs.environment }}
-        working-directory: ./services/hands-on-lambda-ecr # Makefile is in this directory
-
-      - name: Terraform Plan
+      - name: Terraform Plan for Hello World Lambda
         env:
-          # Define environment-specific names for constructing TF_OPT
-          CURRENT_ECR_REPOSITORY_NAME: ${{ env.ECR_REPOSITORY_BASE_NAME }}-${{ github.event.inputs.environment }}
-          CURRENT_LAMBDA_FUNCTION_NAME: ${{ env.LAMBDA_FUNCTION_BASE_NAME }}-${{ github.event.inputs.environment }}
-        run: |
-          TF_OPT_VARS="-var='ecr_image_uri=${{ steps.login-ecr.outputs.registry }}/${{ env.CURRENT_ECR_REPOSITORY_NAME }}:${{ github.sha }}' \
-                       -var='ecr_repository_name=${{ env.CURRENT_ECR_REPOSITORY_NAME }}' \
-                       -var='lambda_function_name=${{ env.CURRENT_LAMBDA_FUNCTION_NAME }}'"
-          make plan ENVIRONMENT=${{ github.event.inputs.environment }} TF_OPT="${TF_OPT_VARS}"
-        working-directory: ./services/hands-on-lambda-ecr # Makefile is in this directory
+          ENV: ${{ github.event.inputs.environment }}
+          # AWS_ACCOUNT_ID is determined by Makefile from terraform output, ensure common infra is applied first if needed
+          # Or pass AWS_ACCOUNT_ID if known and static: AWS_ACCOUNT_ID: "your-aws-account-id"
+        run: make hello-world-plan
+        working-directory: ${{ env.TF_WORKING_DIR }}
 
-      - name: Terraform Apply
-        run: make apply ENVIRONMENT=${{ github.event.inputs.environment }}
-        working-directory: ./services/hands-on-lambda-ecr # Makefile is in this directory
+      - name: Terraform Apply for Hello World Lambda
+        env:
+          ENV: ${{ github.event.inputs.environment }}
+          # AWS_ACCOUNT_ID is determined by Makefile from terraform output
+        run: make hello-world-apply
+        working-directory: ${{ env.TF_WORKING_DIR }}
