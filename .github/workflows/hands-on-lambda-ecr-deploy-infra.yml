@@ -69,7 +69,8 @@ jobs:
           ENV: ${{ github.event.inputs.environment || 'dev' }} # Default to 'dev' for PRs if not specified
           TF_BACKEND_S3_BUCKET: ${{ secrets.TF_BACKEND_S3_BUCKET }}
         run: |
-          make common-plan
+          make common-plan \
+            TF_CMD_ARGS='-var=github_repository=${{ github.repository }} -var=aws_region=${{ env.AWS_REGION }}'
         working-directory: ${{ env.TF_WORKING_DIR }}
 
       - name: Upload Terraform Plan
@@ -111,5 +112,6 @@ jobs:
           TF_BACKEND_S3_BUCKET: ${{ secrets.TF_BACKEND_S3_BUCKET }}
         run: |
           ls -l ${{ env.TF_WORKING_DIR }}
-          make common-apply
+          make common-apply \
+            TF_CMD_ARGS='-var=github_repository=${{ github.repository }} -var=aws_region=${{ env.AWS_REGION }}'
         working-directory: ${{ env.TF_WORKING_DIR }}
