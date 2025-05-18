@@ -6,11 +6,13 @@ variable "aws_region" {
 variable "project_name" {
   description = "Name of the project."
   type        = string
+  default     = "hands-on-lambda-ecr"
 }
 
 variable "environment" {
   description = "Deployment environment (e.g., dev, prod)."
   type        = string
+  default     = "dev"
 }
 
 variable "lambda_name_suffix" {
