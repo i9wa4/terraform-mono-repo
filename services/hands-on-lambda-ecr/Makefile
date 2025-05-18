@@ -104,9 +104,19 @@ dev-common-destroy-auto: ## [dev common] Destroy resources (auto-approves)
 # LAMBDA_IMAGE_URI must be passed for plan/apply/destroy if it's a required variable.
 # Example: make dev-hello-world-apply LAMBDA_IMAGE_URI="your-image-uri"
 DEV_HW_LAMBDA_TF_DIR := $(LAMBDAS_BASE_DIR)/hello_world
-# Use LAMBDA_IMAGE_URI if provided, otherwise use DEFAULT_LAMBDA_IMAGE_URI.
-# Note: DEFAULT_LAMBDA_IMAGE_URI relies on ECR_REGISTRY being correctly set.
-ACTUAL_DEV_HW_LAMBDA_IMAGE_URI := $(or $(LAMBDA_IMAGE_URI),$(DEFAULT_LAMBDA_IMAGE_URI))
+
+# Calculate image tag based on the latest commit in the hello_world lambda's directory.
+# Fallback to global IMAGE_TAG (repo HEAD) if directory-specific log fails or path has no commits.
+_HELLO_WORLD_DIR_COMMIT_HASH := $(shell git log -1 --format=%h -- $(LAMBDAS_BASE_DIR)/hello_world 2>/dev/null)
+DEV_HW_IMAGE_TAG := $(if $(_HELLO_WORLD_DIR_COMMIT_HASH),$(_HELLO_WORLD_DIR_COMMIT_HASH),$(IMAGE_TAG))
+
+# Construct the default image URI for hello_world using its specific tag.
+# The lambda name in the URI is 'hello_world' for these dev-hello-world targets.
+_DEFAULT_DEV_HW_IMAGE_URI_WITH_SPECIFIC_TAG := $(ECR_REGISTRY)/hello_world:$(DEV_HW_IMAGE_TAG)
+
+# Use LAMBDA_IMAGE_URI if provided by the user, otherwise use the hello_world specific default URI.
+# Note: ECR_REGISTRY must be correctly set.
+ACTUAL_DEV_HW_LAMBDA_IMAGE_URI := $(or $(LAMBDA_IMAGE_URI),$(_DEFAULT_DEV_HW_IMAGE_URI_WITH_SPECIFIC_TAG))
 DEV_HW_TF_CMD_ARGS := -var-file=../../$(ENVIRONMENTS_BASE_DIR)/dev/terraform.tfvars -var="image_uri=$(ACTUAL_DEV_HW_LAMBDA_IMAGE_URI)"
 
 dev-hello-world-init: ## [dev hello-world] Initialize Terraform
