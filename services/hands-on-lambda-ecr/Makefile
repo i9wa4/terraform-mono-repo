@@ -25,13 +25,6 @@ IMAGE_TAG ?= $(shell git rev-parse HEAD)
 # ECR_REPOSITORY_NAME, LAMBDA_FUNCTION_NAME, ECR_IMAGE_URI, TF_LOG, ENVIRONMENT
 # AWS_REGION is typically handled by AWS provider configuration (e.g., credentials file or instance profile)
 
-# Conditionally set Terraform environment variable option
-# Only pass -var="environment=..." if $(ENVIRONMENT) is not "dev" (the default in variables.tf)
-TF_ENVIRONMENT_VAR_OPT :=
-ifneq ($(ENVIRONMENT),dev)
-	TF_ENVIRONMENT_VAR_OPT := -var="environment=$(ENVIRONMENT)"
-endif
-
 ecr-login: ## Login to ECR
 	@echo "Logging in to ECR registry $(ECR_REGISTRY)"
 	aws ecr get-login-password --region $(AWS_REGION) | docker login --username AWS --password-stdin $(ECR_REGISTRY)
@@ -69,7 +62,7 @@ validate: fmt
 
 plan: init validate
 	@echo "Planning Terraform in $(TERRAFORM_DIR)"
-	terraform -chdir=$(TERRAFORM_DIR) plan -out=.terraform.plan.$(ENVIRONMENT).tfplan -no-color $(TF_ENVIRONMENT_VAR_OPT) $(TF_OPT)
+	terraform -chdir=$(TERRAFORM_DIR) plan -out=.terraform.plan.$(ENVIRONMENT).tfplan -no-color -var="environment=$(ENVIRONMENT)" $(TF_OPT)
 
 apply: init
 	@echo "Applying Terraform in $(TERRAFORM_DIR)"
