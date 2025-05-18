@@ -28,5 +28,9 @@ variable "github_actions_role_name" {
 variable "common_tags" {
   description = "Common tags to apply to all resources."
   type        = map(string)
-  default     = {}
+  default     = {
+    Project     = "hands-on-lambda-ecr"
+    Environment = "common" # This can be overridden by environment-specific .tfvars
+    ManagedBy   = "Terraform"
+  }
 }
