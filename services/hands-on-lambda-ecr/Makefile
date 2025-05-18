@@ -48,8 +48,8 @@ DEV_COMMON_TF_CMD_ARGS := -var-file=../$(ENVIRONMENTS_BASE_DIR)/dev/terraform.tf
 # Attempt to fetch AWS Account ID and Region from the common Terraform configuration outputs.
 # These commands will only succeed if 'terraform apply' has been run for the common configuration.
 # Fallbacks are provided if these commands fail or return empty.
-TF_OUTPUT_AWS_ACCOUNT_ID := $(strip $(shell terraform -chdir=$(DEV_COMMON_TF_DIR) output -raw aws_account_id 2>/dev/null))
-TF_OUTPUT_AWS_REGION := $(strip $(shell terraform -chdir=$(DEV_COMMON_TF_DIR) output -raw aws_region 2>/dev/null))
+TF_OUTPUT_AWS_ACCOUNT_ID := $(strip $(shell terraform -chdir=$(DEV_COMMON_TF_DIR) $(DEV_COMMON_TF_CMD_ARGS) output -raw aws_account_id 2>/dev/null))
+TF_OUTPUT_AWS_REGION := $(strip $(shell terraform -chdir=$(DEV_COMMON_TF_DIR) $(DEV_COMMON_TF_CMD_ARGS) output -raw aws_region 2>/dev/null))
 
 AWS_REGION := $(TF_OUTPUT_AWS_REGION)
 ECR_AWS_ACCOUNT_ID := $(TF_OUTPUT_AWS_ACCOUNT_ID)
