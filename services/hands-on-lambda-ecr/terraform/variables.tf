@@ -30,7 +30,7 @@ variable "common_tags" {
   type        = map(string)
   default     = {
     Project     = "hands-on-lambda-ecr"
-    Environment = "common" # This can be overridden by environment-specific .tfvars
     ManagedBy   = "Terraform"
+    # Environment = "common" # This can be overridden by environment-specific .tfvars
   }
 }
