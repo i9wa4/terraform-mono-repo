@@ -18,7 +18,7 @@ help:  ## print this help
 # Default environment and lambda if not specified.
 # Override by passing arguments: make plan lambda=my_example_lambda env=dev
 ENV ?= dev
-LAMBDA ?= my_example_lambda # Default lambda for lambda-specific targets
+LAMBDA ?= hello_world # Default lambda for lambda-specific targets
 COMPONENT ?= lambda # 'lambda' or 'cicd'
 
 # Base directories relative to this Makefile's location
