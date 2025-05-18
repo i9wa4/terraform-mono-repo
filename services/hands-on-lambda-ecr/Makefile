@@ -48,25 +48,25 @@ LAMBDA_IMAGE_URI ?= $(ECR_REGISTRY)/$(LAMBDA):$(IMAGE_TAG) # Default constructio
 AWS_REGION ?= ap-northeast-1
 
 # --- Pre-flight Checks ---
-check_lambda_params:
+check_lambda_params: ## Check if required 'lambda' parameter is provided and directory exists
 ifndef LAMBDA
 	$(error lambda argument is required. Usage: make <target> lambda=<lambda_name>)
 endif
 	@if [ ! -d "$(LAMBDA_TF_DIR)" ]; then echo "Error: Lambda directory '$(LAMBDA_TF_DIR)' does not exist."; exit 1; fi
 	@if [ ! -f "$(ENVIRONMENTS_BASE_DIR)/$(ENV)/terraform.tfvars" ]; then echo "Error: Env tfvars file '$(ENVIRONMENTS_BASE_DIR)/$(ENV)/terraform.tfvars' does not exist."; exit 1; fi
 
-check_cicd_params:
+check_cicd_params: ## Check if CI/CD Terraform directory and environment tfvars file exist
 	@if [ ! -d "$(CICD_TF_DIR)" ]; then echo "Error: CI/CD Terraform directory '$(CICD_TF_DIR)' does not exist."; exit 1; fi
 	@if [ ! -f "$(ENVIRONMENTS_BASE_DIR)/$(ENV)/terraform.tfvars" ]; then echo "Error: Env tfvars file '$(ENVIRONMENTS_BASE_DIR)/$(ENV)/terraform.tfvars' does not exist."; exit 1; fi
 
 
 # --- Lambda Specific Docker Targets ---
 .PHONY: lambda-ecr-login lambda-build-push
-lambda-ecr-login:
+lambda-ecr-login: ## Log in to AWS ECR
 	@echo "Logging in to ECR registry $(ECR_REGISTRY) in region $(AWS_REGION)"
 	aws ecr get-login-password --region $(AWS_REGION) | docker login --username AWS --password-stdin $(ECR_REGISTRY)
 
-lambda-build-push: check_lambda_params lambda-ecr-login
+lambda-build-push: check_lambda_params lambda-ecr-login ## Build and push Docker image for the specified lambda to ECR
 	@echo "Building and pushing Docker image for lambda: $(LAMBDA) from $(LAMBDA_APP_DIR)"
 	@echo "Image: $(LAMBDA_IMAGE_URI)"
 	@if [ ! -d "$(LAMBDA_APP_DIR)" ]; then echo "Error: Lambda app directory '$(LAMBDA_APP_DIR)' does not exist. Create it with a Dockerfile."; exit 1; fi
@@ -86,30 +86,30 @@ else
 endif
 
 .PHONY: init validate plan apply apply-auto destroy destroy-auto
-init: $(PRE_REQ_CHECK)
+init: $(PRE_REQ_CHECK) ## Initialize Terraform for the specified component (lambda or cicd)
 	@echo "==> Initializing Terraform for component: $(COMPONENT)$(if $(filter lambda,$(COMPONENT)), (lambda: $(LAMBDA)),) in env: $(ENV) from $(TARGET_TF_DIR)"
 	terraform -chdir=$(TARGET_TF_DIR) init -backend-config="key=hands-on-lambda-ecr/$(TARGET_TF_DIR)/terraform.tfstate"
 
-validate: $(PRE_REQ_CHECK)
+validate: $(PRE_REQ_CHECK) ## Validate Terraform configuration for the specified component
 	@echo "==> Validating Terraform for component: $(COMPONENT)$(if $(filter lambda,$(COMPONENT)), (lambda: $(LAMBDA)),) in env: $(ENV) from $(TARGET_TF_DIR)"
 	terraform -chdir=$(TARGET_TF_DIR) validate
 
-plan: init
+plan: init ## Create a Terraform execution plan for the specified component
 	@echo "==> Planning changes for component: $(COMPONENT)$(if $(filter lambda,$(COMPONENT)), (lambda: $(LAMBDA)),) in env: $(ENV) from $(TARGET_TF_DIR)"
 	terraform -chdir=$(TARGET_TF_DIR) plan $(TF_VARS_ARG)
 
-apply: init
+apply: init ## Apply Terraform changes for the specified component (prompts for approval)
 	@echo "==> Applying changes for component: $(COMPONENT)$(if $(filter lambda,$(COMPONENT)), (lambda: $(LAMBDA)),) in env: $(ENV) from $(TARGET_TF_DIR)"
 	terraform -chdir=$(TARGET_TF_DIR) apply $(TF_VARS_ARG)
 
-apply-auto: init
+apply-auto: init ## Apply Terraform changes for the specified component (auto-approves)
 	@echo "==> Applying changes (auto-approve) for component: $(COMPONENT)$(if $(filter lambda,$(COMPONENT)), (lambda: $(LAMBDA)),) in env: $(ENV) from $(TARGET_TF_DIR)"
 	terraform -chdir=$(TARGET_TF_DIR) apply $(TF_VARS_ARG) -auto-approve
 
-destroy: init
+destroy: init ## Destroy Terraform-managed resources for the specified component (prompts for approval)
 	@echo "==> Destroying resources for component: $(COMPONENT)$(if $(filter lambda,$(COMPONENT)), (lambda: $(LAMBDA)),) in env: $(ENV) from $(TARGET_TF_DIR)"
 	terraform -chdir=$(TARGET_TF_DIR) destroy $(TF_VARS_ARG)
 
-destroy-auto: init
+destroy-auto: init ## Destroy Terraform-managed resources for the specified component (auto-approves)
 	@echo "==> Destroying resources (auto-approve) for component: $(COMPONENT)$(if $(filter lambda,$(COMPONENT)), (lambda: $(LAMBDA)),) in env: $(ENV) from $(TARGET_TF_DIR)"
 	terraform -chdir=$(TARGET_TF_DIR) destroy $(TF_VARS_ARG) -auto-approve
