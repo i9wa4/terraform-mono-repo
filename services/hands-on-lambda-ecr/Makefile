@@ -24,7 +24,7 @@ COMMON_DIR := terraform
 ENVIRONMENTS_BASE_DIR := environments
 
 # Docker image details
-ECR_REGISTRY ?= YOUR_AWS_ACCOUNT_ID.dkr.ecr.YOUR_AWS_REGION.amazonaws.com # MUST BE SET for lambda-build-push
+ECR_REGISTRY ?= YOUR_AWS_ACCOUNT_ID.dkr.ecr.YOUR_AWS_REGION.amazonaws.com # <-- REPLACE YOUR_AWS_ACCOUNT_ID and YOUR_AWS_REGION with your actual values
 IMAGE_TAG ?= $(shell git rev-parse --short HEAD)
 # LAMBDA_IMAGE_URI is typically passed to lambda apply targets, or constructed.
 # For 'make lambda-build-push', it's constructed using ECR_REGISTRY, LAMBDA, IMAGE_TAG.
