@@ -55,7 +55,9 @@ ECR_AWS_ACCOUNT_ID := $(TF_OUTPUT_AWS_ACCOUNT_ID)
 # Docker image details
 # Ensure AWS_REGION and ECR_AWS_ACCOUNT_ID have fallbacks if TF_OUTPUT_... are empty (e.g., before first common apply)
 ECR_REGISTRY ?= $(if $(ECR_AWS_ACCOUNT_ID),$(ECR_AWS_ACCOUNT_ID),YOUR_AWS_ACCOUNT_ID).dkr.ecr.$(if $(AWS_REGION),$(AWS_REGION),YOUR_AWS_REGION).amazonaws.com
-_IMAGE_TAG_FROM_GIT := $(strip $(shell git rev-parse --short HEAD))
+# Ensure IMAGE_TAG is clean of all whitespace, including internal or trailing spaces from git output.
+_RAW_IMAGE_TAG_FROM_GIT := $(shell git rev-parse --short HEAD)
+_IMAGE_TAG_FROM_GIT := $(shell echo $(_RAW_IMAGE_TAG_FROM_GIT) | tr -d '[:space:]')
 IMAGE_TAG ?= $(_IMAGE_TAG_FROM_GIT)
 DEFAULT_LAMBDA_IMAGE_URI := $(ECR_REGISTRY)/$(LAMBDA):$(IMAGE_TAG) # General default, used if specific lambda doesn't override.
 
@@ -94,7 +96,8 @@ LAMBDAS_BASE_DIR := lambdas
 DEV_HW_LAMBDA_TF_DIR := $(LAMBDAS_BASE_DIR)/hello-world
 
 # Calculate image tag based on the latest commit in the hello-world lambda's directory.
-_HELLO_WORLD_DIR_COMMIT_HASH := $(strip $(shell git log -1 --format=%h -- $(LAMBDAS_BASE_DIR)/hello-world 2>/dev/null))
+_RAW_HELLO_WORLD_DIR_COMMIT_HASH := $(shell git log -1 --format=%h -- $(LAMBDAS_BASE_DIR)/hello-world 2>/dev/null)
+_HELLO_WORLD_DIR_COMMIT_HASH := $(shell echo $(_RAW_HELLO_WORLD_DIR_COMMIT_HASH) | tr -d '[:space:]')
 DEV_HW_IMAGE_TAG := $(if $(_HELLO_WORLD_DIR_COMMIT_HASH),$(_HELLO_WORLD_DIR_COMMIT_HASH),$(IMAGE_TAG)) # Fallback to global IMAGE_TAG.
 
 # Define the expected ECR repository name for hello-world, matching Terraform's local.effective_function_name.
