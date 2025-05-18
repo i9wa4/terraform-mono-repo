@@ -48,19 +48,20 @@ DEV_COMMON_TF_CMD_ARGS := -var-file=../$(ENVIRONMENTS_BASE_DIR)/dev/terraform.tf
 # Attempt to fetch AWS Account ID and Region from the common Terraform configuration outputs.
 # These commands will only succeed if 'terraform apply' has been run for the common configuration.
 # Fallbacks are provided if these commands fail or return empty.
-TF_OUTPUT_AWS_ACCOUNT_ID := $(shell terraform -chdir=$(DEV_COMMON_TF_DIR) output -raw aws_account_id 2>/dev/null)
-TF_OUTPUT_AWS_REGION := $(shell terraform -chdir=$(DEV_COMMON_TF_DIR) output -raw aws_region 2>/dev/null)
+TF_OUTPUT_AWS_ACCOUNT_ID := $(strip $(shell terraform -chdir=$(DEV_COMMON_TF_DIR) output -raw aws_account_id 2>/dev/null))
+TF_OUTPUT_AWS_REGION := $(strip $(shell terraform -chdir=$(DEV_COMMON_TF_DIR) output -raw aws_region 2>/dev/null))
 
 # Set AWS_REGION: Use value from Terraform output if available, otherwise use environment variable or fallback.
 AWS_REGION := $(if $(TF_OUTPUT_AWS_REGION),$(TF_OUTPUT_AWS_REGION),$(AWS_REGION))
 AWS_REGION ?= ap-northeast-1 # Fallback if not set by TF output or environment.
 
 # Set AWS_ACCOUNT_ID for ECR: Use value from Terraform output if available, otherwise use a placeholder.
-ECR_AWS_ACCOUNT_ID := $(if $(TF_OUTPUT_AWS_ACCOUNT_ID),$(TF_OUTPUT_AWS_ACCOUNT_ID),"YOUR_AWS_ACCOUNT_ID") # Placeholder if TF output not available.
+ECR_AWS_ACCOUNT_ID := $(if $(TF_OUTPUT_AWS_ACCOUNT_ID),$(TF_OUTPUT_AWS_ACCOUNT_ID),YOUR_AWS_ACCOUNT_ID) # Placeholder if TF output not available.
 
 # Docker image details
 ECR_REGISTRY ?= $(ECR_AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com
-IMAGE_TAG ?= $(shell git rev-parse --short HEAD)
+_IMAGE_TAG_FROM_GIT := $(strip $(shell git rev-parse --short HEAD))
+IMAGE_TAG ?= $(_IMAGE_TAG_FROM_GIT)
 DEFAULT_LAMBDA_IMAGE_URI := $(ECR_REGISTRY)/$(LAMBDA):$(IMAGE_TAG) # General default, used if specific lambda doesn't override.
 
 dev-common-init: ## [dev common] Initialize Terraform
@@ -104,7 +105,7 @@ LAMBDAS_BASE_DIR := lambdas
 DEV_HW_LAMBDA_TF_DIR := $(LAMBDAS_BASE_DIR)/hello-world
 
 # Calculate image tag based on the latest commit in the hello-world lambda's directory.
-_HELLO_WORLD_DIR_COMMIT_HASH := $(shell git log -1 --format=%h -- $(LAMBDAS_BASE_DIR)/hello-world 2>/dev/null)
+_HELLO_WORLD_DIR_COMMIT_HASH := $(strip $(shell git log -1 --format=%h -- $(LAMBDAS_BASE_DIR)/hello-world 2>/dev/null))
 DEV_HW_IMAGE_TAG := $(if $(_HELLO_WORLD_DIR_COMMIT_HASH),$(_HELLO_WORLD_DIR_COMMIT_HASH),$(IMAGE_TAG)) # Fallback to global IMAGE_TAG.
 
 # Define the expected ECR repository name for hello-world, matching Terraform's local.effective_function_name.
