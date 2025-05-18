@@ -1,7 +1,7 @@
 variable "lambda_name_suffix" {
   description = "Suffix for the Lambda function name, used to construct the full name."
   type        = string
-  default     = "hello_world" # Changed from example-lambda
+  default     = "hello-world"
 }
 
 variable "image_uri" {

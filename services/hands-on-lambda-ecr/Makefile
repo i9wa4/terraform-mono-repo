@@ -90,7 +90,7 @@ lambda-build-push: lambda-ecr-login ## Build and push Docker image for a lambda 
 	docker push $(_CURRENT_LAMBDA_IMAGE_URI)
 
 
-LAMBDA ?= hello_world # Default lambda name for targets like lambda-build-push if not specified
+LAMBDA ?= hello-world # Default lambda name for targets like lambda-build-push if not specified
 LAMBDAS_BASE_DIR := lambdas
 
 
@@ -106,18 +106,18 @@ LAMBDAS_BASE_DIR := lambdas
 # Dev - hello-world Lambda
 # LAMBDA_IMAGE_URI must be passed for plan/apply/destroy if it's a required variable.
 # Example: make dev-hello-world-apply LAMBDA_IMAGE_URI="your-image-uri"
-DEV_HW_LAMBDA_TF_DIR := $(LAMBDAS_BASE_DIR)/hello_world
+DEV_HW_LAMBDA_TF_DIR := $(LAMBDAS_BASE_DIR)/hello-world
 
-# Calculate image tag based on the latest commit in the hello_world lambda's directory.
+# Calculate image tag based on the latest commit in the hello-world lambda's directory.
 # Fallback to global IMAGE_TAG (repo HEAD) if directory-specific log fails or path has no commits.
-_HELLO_WORLD_DIR_COMMIT_HASH := $(shell git log -1 --format=%h -- $(LAMBDAS_BASE_DIR)/hello_world 2>/dev/null)
+_HELLO_WORLD_DIR_COMMIT_HASH := $(shell git log -1 --format=%h -- $(LAMBDAS_BASE_DIR)/hello-world 2>/dev/null)
 DEV_HW_IMAGE_TAG := $(if $(_HELLO_WORLD_DIR_COMMIT_HASH),$(_HELLO_WORLD_DIR_COMMIT_HASH),$(IMAGE_TAG))
 
-# Construct the default image URI for hello_world using its specific tag.
-# The lambda name in the URI is 'hello_world' for these dev-hello-world targets.
-_DEFAULT_DEV_HW_IMAGE_URI_WITH_SPECIFIC_TAG := $(ECR_REGISTRY)/hello_world:$(DEV_HW_IMAGE_TAG)
+# Construct the default image URI for hello-world using its specific tag.
+# The lambda name in the URI is 'hello-world' for these dev-hello-world targets.
+_DEFAULT_DEV_HW_IMAGE_URI_WITH_SPECIFIC_TAG := $(ECR_REGISTRY)/hello-world:$(DEV_HW_IMAGE_TAG)
 
-# Use LAMBDA_IMAGE_URI if provided by the user, otherwise use the hello_world specific default URI.
+# Use LAMBDA_IMAGE_URI if provided by the user, otherwise use the hello-world specific default URI.
 # Note: ECR_REGISTRY must be correctly set.
 ACTUAL_DEV_HW_LAMBDA_IMAGE_URI := $(or $(LAMBDA_IMAGE_URI),$(_DEFAULT_DEV_HW_IMAGE_URI_WITH_SPECIFIC_TAG))
 DEV_HW_TF_CMD_ARGS := -var-file=../../$(ENVIRONMENTS_BASE_DIR)/dev/terraform.tfvars -var="image_uri=$(ACTUAL_DEV_HW_LAMBDA_IMAGE_URI)"
