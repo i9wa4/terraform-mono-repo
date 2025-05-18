@@ -1,5 +1,5 @@
-name: hands-on-lambda-ecr-deploy-apps
-run-name: ${{ github.event_name }} on ${{ github.ref_name }} by @${{ github.actor }}
+name: hands-on-lambda-ecr-apps
+run-name: ${{ github.event_name }} on ${{ github.ref_name }} by @${{ github.actor }} inputs: ${{ github.input.environment }}-${{ github.input.action }}
 
 on:
   workflow_dispatch:
@@ -11,30 +11,53 @@ on:
         type: choice
         options:
           - dev
-          - prod
+      action:
+        description: 'Action to perform'
+        required: true
+        default: 'plan'
+        type: choice
+        options:
+          - plan
+          - apply
 
 env:
   AWS_REGION: "ap-northeast-1"
-  ECR_REPOSITORY_BASE_NAME: "hands-on-lambda-ecr"
   TF_VERSION: "1.11.4"
   TF_WORKING_DIR: "./services/hands-on-lambda-ecr"
   TF_BACKEND_S3_BUCKET: ${{ secrets.TF_BACKEND_S3_BUCKET_NAME }}
+  ECR_REPOSITORY_BASE_NAME: "hands-on-lambda-ecr" # ECRリポジトリ名が環境ごとに変わる場合は注意
 
 permissions:
-  id-token: write
-  contents: read
+  id-token: write # AWS OIDC認証用
+  contents: read  # コードのチェックアウト用
 
 jobs:
   plan_apps:
-    name: Plan Apps
+    name: "Plan Apps"
     runs-on: ubuntu-latest
+    outputs:
+      environment_name: ${{ steps.set_env.outputs.DEPLOY_ENV }}
+      plan_artifact_name: tfplan-${{ steps.set_env.outputs.DEPLOY_ENV }}
     steps:
+      - name: Determine Environment
+        id: set_env
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "DEPLOY_ENV=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "DEPLOY_ENV=dev" >> $GITHUB_OUTPUT # Pull Request時は 'dev' 環境を対象とする (固定)
+          else
+            echo "DEPLOY_ENV=dev" >> $GITHUB_OUTPUT # その他の予期せぬトリガーの場合のデフォルト
+          fi
+
       - name: Checkout code
         uses: actions/checkout@v4
 
       - name: Configure AWS credentials using OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
+          # 環境ごとにIAM Roleを分ける場合は、ここで条件分岐するか、secrets名に環境名を含める
+          # 例: role-to-assume: ${{ secrets.HANDS_ON_LAMBDA_ECR_TERRAFORM_IAM }}_${{ steps.set_env.outputs.DEPLOY_ENV }}
           role-to-assume: ${{ secrets.HANDS_ON_LAMBDA_ECR_TERRAFORM_IAM }}
           aws-region: ${{ env.AWS_REGION }}
 
@@ -46,15 +69,38 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
-      - name: Terraform Plan for Hello World Lambda
+      - name: Terraform Init for Hello World Lambda
         env:
-          ENV: ${{ github.event.inputs.environment }}
+          ENV: ${{ steps.set_env.outputs.DEPLOY_ENV }}
+        run: make hello-world-init # Makefileに "hello-world-init" ターゲットがある前提
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+      - name: Terraform Plan for Hello World Lambda
+        id: tf_plan
+        env:
+          ENV: ${{ steps.set_env.outputs.DEPLOY_ENV }}
+        # Makefileの 'hello-world-plan' が 'terraform plan -out=tfplan' を実行するようにしてください
         run: make hello-world-plan
         working-directory: ${{ env.TF_WORKING_DIR }}
 
+      - name: Upload Terraform Plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: tfplan-${{ steps.set_env.outputs.DEPLOY_ENV }}
+          # Makefileで tfplan という名前のファイルが TF_WORKING_DIR 直下に生成される前提
+          path: ${{ env.TF_WORKING_DIR }}/tfplan
+          retention-days: 1 # プランファイルの保持日数
+
   apply_apps:
-    name: Apply Apps
+    name: "Apply Apps"
     runs-on: ubuntu-latest
+    needs: plan_apps # plan_appsジョブの完了を待つ
+    # applyを実行する条件:
+    # 1. 手動実行 (workflow_dispatch) であること
+    # 2. 手動実行の入力で action が 'apply' であること
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
+    environment: # GitHub Environments と連携させる場合 (承認フローなどに利用可)
+      name: ${{ needs.plan_apps.outputs.environment_name }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -62,7 +108,7 @@ jobs:
       - name: Configure AWS credentials using OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.HANDS_ON_LAMBDA_ECR_TERRAFORM_IAM }}
+          role-to-assume: ${{ secrets.HANDS_ON_LAMBDA_ECR_TERRAFORM_IAM }} # planジョブと同様のIAMロール
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
@@ -73,8 +119,15 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
+      - name: Download Terraform Plan
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.plan_apps.outputs.plan_artifact_name }}
+          path: ${{ env.TF_WORKING_DIR }} # ダウンロード先
+
       - name: Terraform Apply for Hello World Lambda
         env:
-          ENV: ${{ github.event.inputs.environment }}
+          ENV: ${{ needs.plan_apps.outputs.environment_name }}
+        # Makefileの 'hello-world-apply' が 'terraform apply tfplan' を実行するようにしてください
         run: make hello-world-apply
         working-directory: ${{ env.TF_WORKING_DIR }}
