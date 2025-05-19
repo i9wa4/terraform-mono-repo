@@ -1,0 +1,68 @@
+name: mcp-lambda-ecr-infra
+run-name: ${{ github.event_name }} on ${{ github.ref_name }} by @${{ github.actor }} inputs ${{ github.event.inputs.environment }} ${{ github.event.inputs.action }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+      action:
+        description: 'Action to perform'
+        required: true
+        default: 'plan'
+        type: choice
+        options:
+          - plan
+          - apply
+
+env:
+  AWS_REGION: "ap-northeast-1"
+  TF_VERSION: "1.11.4"
+  TF_WORKING_DIR: "./services/mcp-lambda-ecr"
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  plan_apply_infra:
+    name: "Plan/Apply Infra"
+    runs-on: ubuntu-24.04-arm
+    environment: ${{ github.event.inputs.environment }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials using OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.MCP_LAMBDA_ECR_TERRAFORM_IAM }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Terraform Plan
+        id: plan
+        env:
+          TF_BACKEND_S3_BUCKET: ${{ secrets.TF_BACKEND_S3_BUCKET }}
+        run: |
+          make common-plan \
+            COMMON_VAR_FILE_ARGS= \
+            COMMON_ARGS='-var=github_repository=${{ github.repository }} -var=aws_region=${{ env.AWS_REGION }}'
+        working-directory: ${{ env.TF_WORKING_DIR }}
+
+      - name: Terraform Apply
+        if: github.event.inputs.action == 'apply'
+        env:
+          TF_BACKEND_S3_BUCKET: ${{ secrets.TF_BACKEND_S3_BUCKET }}
+        run: |
+          make common-apply
+        working-directory: ${{ env.TF_WORKING_DIR }}
