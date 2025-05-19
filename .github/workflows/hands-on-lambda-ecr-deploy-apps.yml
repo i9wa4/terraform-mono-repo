@@ -63,6 +63,7 @@ jobs:
         id: tf_plan
         env:
           TF_BACKEND_S3_BUCKET: ${{ secrets.TF_BACKEND_S3_BUCKET }}
+          ENV: ${{ github.event.inputs.environment }}
         run: |
           make lambda-plan \
             APP_NAME=${{ matrix.app_name }} \
@@ -76,6 +77,7 @@ jobs:
         if: github.event.inputs.action == 'apply'
         env:
           TF_BACKEND_S3_BUCKET: ${{ secrets.TF_BACKEND_S3_BUCKET }}
+          ENV: ${{ github.event.inputs.environment }}
         run: |
           ls -l lambdas/${{ matrix.app_name }}
           make lambda-apply-gha \
