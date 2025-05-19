@@ -13,6 +13,7 @@ provider "aws" {
 locals {
   app_name             = basename(abspath(path.module))
   lambda_function_name = "${var.project_name}-${var.environment}-${local.app_name}"
+  # FIXME: "${var.github_repository}/${var.environment}/${var.project_name}"
 }
 
 data "aws_caller_identity" "current" {}
@@ -86,6 +87,17 @@ resource "aws_iam_policy" "lambda_exec_policy" {
         ],
         Effect   = "Allow",
         Resource = data.aws_ecr_repository.this.arn
+      },
+      {
+        Action   = "secretsmanager:GetSecretValue",
+        Effect   = "Allow",
+        Resource = [
+          # FIXME: correct the secret ARN
+          data.aws_secretsmanager_secret.generic_mcp_secret.arn,
+          # 他のシークレットを使用する場合は、ここに追加します
+          # data.aws_secretsmanager_secret.gemini_api_key.arn,
+          # data.aws_secretsmanager_secret.slack_webhook_url.arn
+        ]
       }
     ]
   })
@@ -110,9 +122,8 @@ resource "aws_lambda_function" "this" {
 
   environment {
     variables = {
-      GEMINI_API_KEY_SECRET_NAME    = "terraform-mono-repo/${var.environment}/${var.project_name}"
-      SLACK_WEBHOOK_URL_SECRET_NAME = "terraform-mono-repo/${var.environment}/${var.project_name}"
-      MCP_SERVER_URL_SECRET_NAME    = "terraform-mono-repo/${var.environment}/${var.project_name}"
+      # FIXME:
+      APP_SECRET_NAME = "${var.github_repository}/${var.environment}/${var.project_name}"
     }
   }
 }
