@@ -4,14 +4,15 @@ provider "aws" {
     tags = {
       Project     = var.project_name
       Environment = var.environment
-      AppName     = var.app_name
+      AppName     = local.app_name
       ManagedBy   = "Terraform"
     }
   }
 }
 
 locals {
-  lambda_function_name = "${var.project_name}-${var.environment}-${var.app_name}"
+  app_name             = basename(abspath(path.module))
+  lambda_function_name = "${var.project_name}-${var.environment}-${local.app_name}"
 }
 
 data "aws_caller_identity" "current" {}

@@ -20,12 +20,6 @@ variable "github_repository" {
   type        = string
 }
 
-variable "app_name" {
-  description = "The name of the application."
-  type        = string
-  default     = "hello-world"
-}
-
 variable "image_uri" {
   description = "ECR image URI for the Lambda. Provided in deployment."
   type        = string
