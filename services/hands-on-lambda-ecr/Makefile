@@ -19,10 +19,9 @@ AWS_REGION ?= ap-northeast-1
 ENV ?= dev
 
 # Directories
-SERVICE_ROOT_DIR := .
-COMMON_DIR := $(SERVICE_ROOT_DIR)/terraform
-LAMBDAS_BASE_DIR := $(SERVICE_ROOT_DIR)/lambdas
-ENV_DIR := $(SERVICE_ROOT_DIR)/environments/$(ENV)
+COMMON_DIR := terraform
+LAMBDAS_BASE_DIR := lambdas
+ENV_DIR := environments/$(ENV)
 
 # Common Infrastructure
 COMMON_VAR_FILE_ARGS := '-var-file=../$(ENV_DIR)/terraform.tfvars'
