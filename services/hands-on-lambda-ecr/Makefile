@@ -38,21 +38,6 @@ LAMBDA_VAR_FILE_ARGS := '-var-file=../../$(ENV_DIR)/terraform.tfvars'
 # ----------------------
 # Public Targets
 #
-generate_app_names_list:
-	@echo "Finding Lambda app names and generating JSON content directly..."
-	@( \
-		temp_app_list_for_json="" && \
-		app_names_found=$$(find $(LAMBDAS_BASE_DIR) -mindepth 1 -maxdepth 1 -type d -exec basename {} \;) && \
-		if [ -n "$$app_names_found" ]; then \
-			temp_app_list_for_json=$$(echo "$$app_names_found" | awk '{printf "\"%s\",", $$0}' | sed 's/,$$//'); \
-		fi; \
-		echo -n '{"lambda_app_names": ['; \
-		if [ -n "$$temp_app_list_for_json" ]; then echo -n "$$temp_app_list_for_json"; fi; \
-		echo ']}'; \
-	) > $(ENV_DIR)/common_auto.tfvars.json
-	@echo "Generated JSON file content:"
-	@cat $(ENV_DIR)/common_auto.tfvars.json || echo "!! File not found or is empty (check permissions or path). !!"
-
 common-plan: generate_app_names_list ## [common] terraform plan
 	$(MAKE) plan \
 		TARGET_DIR="$(COMMON_DIR)" \
@@ -65,11 +50,30 @@ common-apply: ## [common] terraform apply
 		TARGET_DIR="$(COMMON_DIR)" \
 		PLAN_FILE_ARGS="$(PLAN_FILE_NAME)"
 
-hello-world-plan: ## [hello-world] terraform plan
-	$(MAKE) lambda-plan APP_NAME=hello-world
+lambda-plan: ## [lambda] terraform plan (e.g. make lambda-plan APP_NAME=hello-world)
+	$(MAKE) plan \
+		TARGET_DIR=lambdas/$(APP_NAME) \
+		VAR_FILE_ARGS=$(LAMBDA_VAR_FILE_ARGS) \
+		TF_ARGS='$(LAMBDA_ARGS) -var="image_uri=$(ECR_REGISTRY)/$(PROJECT_NAME)-$(ENV)-$(APP_NAME):$(shell git log -1 --format=%h -- lambdas/$(APP_NAME) 2>/dev/null | tr -d '[:space:]')"' \
+		PLAN_FILE_ARGS="-out=$(PLAN_FILE_NAME)"
 
-hello-world-apply: ## [hello-world] terraform apply
-	$(MAKE) lambda-apply APP_NAME=hello-world
+lambda-apply: ## [lambda] build image & terraform apply (e.g. make lambda-apply APP_NAME=hello-world)
+	$(MAKE) ecr-login ECR_REGISTRY=$(ECR_REGISTRY)
+	$(MAKE) ecr-build-push \
+		ECR_IMAGE_URI=$(ECR_REGISTRY)/$(PROJECT_NAME)-$(ENV)-$(APP_NAME):$(shell git log -1 --format=%h -- lambdas/$(APP_NAME) 2>/dev/null | tr -d '[:space:]') \
+		APP_ROOT_DIR=lambdas/$(APP_NAME)
+	$(MAKE) apply \
+		TARGET_DIR=lambdas/$(APP_NAME) \
+		PLAN_FILE_ARGS=$(PLAN_FILE_NAME)
+
+lambda-apply-gha: ## [lambda] build image & terraform apply for GitHub Actions
+	# No need to log in to ECR
+	$(MAKE) ecr-build-push \
+		ECR_IMAGE_URI=$(ECR_REGISTRY)/$(PROJECT_NAME)-$(ENV)-$(APP_NAME):$(shell git log -1 --format=%h -- lambdas/$(APP_NAME) 2>/dev/null | tr -d '[:space:]') \
+		APP_ROOT_DIR=lambdas/$(APP_NAME)
+	$(MAKE) apply \
+		TARGET_DIR=lambdas/$(APP_NAME) \
+		PLAN_FILE_ARGS=$(PLAN_FILE_NAME)
 
 # ----------------------
 # Private Targets
@@ -97,41 +101,24 @@ plan-destroy: validate
 destroy: plan-destroy
 	terraform -chdir=$(TARGET_DIR) destroy -auto-approve $(PLAN_FILE_ARGS)
 
+generate_app_names_list:
+	@echo "Finding Lambda app names and generating JSON content directly..."
+	@( \
+		temp_app_list_for_json="" && \
+		app_names_found=$$(find $(LAMBDAS_BASE_DIR) -mindepth 1 -maxdepth 1 -type d -exec basename {} \;) && \
+		if [ -n "$$app_names_found" ]; then \
+			temp_app_list_for_json=$$(echo "$$app_names_found" | awk '{printf "\"%s\",", $$0}' | sed 's/,$$//'); \
+		fi; \
+		echo -n '{"lambda_app_names": ['; \
+		if [ -n "$$temp_app_list_for_json" ]; then echo -n "$$temp_app_list_for_json"; fi; \
+		echo ']}'; \
+	) > $(ENV_DIR)/common_auto.tfvars.json
+	@echo "Generated JSON file content:"
+	@cat $(ENV_DIR)/common_auto.tfvars.json || echo "!! File not found or is empty (check permissions or path). !!"
+
 ecr-login:
 	aws ecr get-login-password --region $(AWS_REGION) | docker login --username AWS --password-stdin $(ECR_REGISTRY)
 
 ecr-build-push:
 	docker build -t $(ECR_IMAGE_URI) $(APP_ROOT_DIR) --platform=linux/arm64 --provenance=false
 	docker push $(ECR_IMAGE_URI)
-
-lambda-init:
-	$(MAKE) init TARGET_DIR=lambdas/$(APP_NAME)
-
-lambda-plan:
-	$(MAKE) plan \
-		TARGET_DIR=lambdas/$(APP_NAME) \
-		VAR_FILE_ARGS=$(LAMBDA_VAR_FILE_ARGS) \
-		TF_ARGS='$(LAMBDA_ARGS) -var="image_uri=$(ECR_REGISTRY)/$(PROJECT_NAME)-$(ENV)-$(APP_NAME):$(shell git log -1 --format=%h -- lambdas/$(APP_NAME) 2>/dev/null | tr -d '[:space:]')"' \
-		PLAN_FILE_ARGS="-out=$(PLAN_FILE_NAME)"
-
-lambda-apply:
-	# $(MAKE) apply \
-	# 	$(LAMBDA_VAR_FILE_ARGS) \
-	# 	-var="image_uri=dummy" \ # image_uri が必須の場合、ダミー値を渡すか、TF側でoptionalにする
-	# 	-target=aws_ecr_repository.lambda_ecr_repo \
-	# 	-target=aws_cloudwatch_log_group.lambda_log_group
-	$(MAKE) ecr-login ECR_REGISTRY=$(ECR_REGISTRY)
-	$(MAKE) ecr-build-push \
-		ECR_IMAGE_URI=$(ECR_REGISTRY)/$(PROJECT_NAME)-$(ENV)-$(APP_NAME):$(shell git log -1 --format=%h -- lambdas/$(APP_NAME) 2>/dev/null | tr -d '[:space:]') \
-		APP_ROOT_DIR=lambdas/$(APP_NAME)
-	$(MAKE) apply \
-		TARGET_DIR=lambdas/$(APP_NAME) \
-		PLAN_FILE_ARGS=$(PLAN_FILE_NAME)
-
-lambda-apply-gha:
-	$(MAKE) ecr-build-push \
-		ECR_IMAGE_URI=$(ECR_REGISTRY)/$(PROJECT_NAME)-$(ENV)-$(APP_NAME):$(shell git log -1 --format=%h -- lambdas/$(APP_NAME) 2>/dev/null | tr -d '[:space:]') \
-		APP_ROOT_DIR=lambdas/$(APP_NAME)
-	$(MAKE) apply \
-		TARGET_DIR=lambdas/$(APP_NAME) \
-		PLAN_FILE_ARGS=$(PLAN_FILE_NAME)
