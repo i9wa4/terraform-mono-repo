@@ -73,6 +73,7 @@ jobs:
           make common-plan \
             COMMON_VAR_FILES= \
             COMMON_ARGS='-var=github_repository=${{ github.repository }} -var=aws_region=${{ env.AWS_REGION }}'
+          ls -l
         working-directory: ${{ env.TF_WORKING_DIR }}
 
       - name: Upload Terraform Plan
