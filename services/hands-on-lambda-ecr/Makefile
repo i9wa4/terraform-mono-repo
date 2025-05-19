@@ -101,7 +101,7 @@ lambda-apply:
 		PLAN_FILE_ARGS=$(PLAN_FILE_NAME)
 
 lambda-apply-gha:
-	$(MAKE) ecr-build-push-gha \
+	$(MAKE) ecr-build-push \
 		ECR_IMAGE_URI=$(ECR_REGISTRY)/$(PROJECT_NAME)-$(ENV)-$(APP_NAME):$(shell git log -1 --format=%h -- lambdas/$(APP_NAME) 2>/dev/null | tr -d '[:space:]') \
 		APP_ROOT_DIR=lambdas/$(APP_NAME)
 	$(MAKE) apply \
