@@ -1,5 +1,5 @@
 name: hands-on-lambda-ecr-apps-hello-world
-run-name: ${{ github.event_name }} on ${{ github.ref_name }} by @${{ github.actor }} inputs: ${{ github.event.inputs.environment }}, ${{ github.event.inputs.action }}
+run-name: ${{ github.event_name }} on ${{ github.ref_name }} by @${{ github.actor }} inputs ${{ github.event.inputs.environment }} ${{ github.event.inputs.action }}
 
 on:
   workflow_dispatch:
