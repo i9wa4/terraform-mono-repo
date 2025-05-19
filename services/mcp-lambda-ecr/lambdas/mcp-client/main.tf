@@ -42,9 +42,9 @@ resource "aws_iam_role" "lambda_exec_role" {
       {
         Action = "secretmanager:GetSecretValue",
         Effect = "Allow",
-        Principal = {
+        Resource = [
           "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:terraform-mono-repo/${var.environment}/${var.project_name}"
-        }
+        ]
       }
     ]
   })
