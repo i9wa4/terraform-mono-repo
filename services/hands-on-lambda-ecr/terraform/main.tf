@@ -39,3 +39,21 @@ resource "aws_iam_role_policy_attachment" "github_actions_oidc_role_admin_attach
   role       = aws_iam_role.terraform_hands_on_lambda_ecr.name
   policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
 }
+
+resource "aws_ecr_repository" "app_ecr_repos" {
+  for_each = toset(var.lambda_app_names)
+
+  name                 = "${var.project_name}-${var.environment}-${each.key}"
+  image_tag_mutability = "IMMUTABLE"
+
+  image_scanning_configuration {
+    scan_on_push = true
+  }
+
+  tags = {
+    Project     = var.project_name
+    Environment = var.environment
+    AppName     = each.key
+    ManagedBy   = "Terraform"
+  }
+}

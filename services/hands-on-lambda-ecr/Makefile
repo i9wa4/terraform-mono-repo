@@ -18,24 +18,47 @@ PROJECT_NAME ?= hands-on-lambda-ecr
 AWS_REGION ?= ap-northeast-1
 ENV ?= dev
 
-COMMON_DIR := terraform
-COMMON_VAR_FILE_ARGS := '-var-file=../environments/$(ENV)/terraform.tfvars'
+# Directories
+SERVICE_ROOT_DIR := .
+COMMON_DIR := $(SERVICE_ROOT_DIR)/terraform
+LAMBDAS_BASE_DIR := $(SERVICE_ROOT_DIR)/lambdas
+ENV_DIR := $(SERVICE_ROOT_DIR)/environments/$(ENV)
+
+# Common Infrastructure
+COMMON_VAR_FILE_ARGS := '-var-file=../$(ENV_DIR)/terraform.tfvars'
+APP_NAMES_ARG := '-var-file=../$(ENV_DIR)/common_auto.tfvars.json'
 AWS_ACCOUNT_ID := $(strip $(shell terraform -chdir=$(COMMON_DIR) output -raw aws_account_id 2>/dev/null))
 ECR_REGISTRY := $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com
 PLAN_FILE_NAME := plan.tfplan
 # PLAN_DESTROY_FILE_NAME := plan.destroy.tfplan
 
-LAMBDA_VAR_FILE_ARGS := '-var-file=../../environments/$(ENV)/terraform.tfvars'
+# Lambda Functions
+LAMBDA_VAR_FILE_ARGS := '-var-file=../../$(ENV_DIR)/terraform.tfvars'
 
 # ----------------------
 # Public Targets
 #
-common-plan: ## [common] terraform plan
+generate_app_names_list:
+	@echo "Finding Lambda app names and generating JSON content directly..."
+	@( \
+		temp_app_list_for_json="" && \
+		app_names_found=$$(find $(LAMBDAS_BASE_DIR) -mindepth 1 -maxdepth 1 -type d -exec basename {} \;) && \
+		if [ -n "$$app_names_found" ]; then \
+			temp_app_list_for_json=$$(echo "$$app_names_found" | awk '{printf "\"%s\",", $$0}' | sed 's/,$$//'); \
+		fi; \
+		echo -n '{"lambda_app_names": ['; \
+		if [ -n "$$temp_app_list_for_json" ]; then echo -n "$$temp_app_list_for_json"; fi; \
+		echo ']}'; \
+	) > $(ENV_DIR)/common_auto.tfvars.json
+	@echo "Generated JSON file content:"
+	@cat $(ENV_DIR)/common_auto.tfvars.json || echo "!! File not found or is empty (check permissions or path). !!"
+
+common-plan: generate_app_names_list ## [common] terraform plan
 	$(MAKE) plan \
 		TARGET_DIR="$(COMMON_DIR)" \
 		PLAN_FILE_ARGS="-out=$(PLAN_FILE_NAME)" \
 		VAR_FILE_ARGS="$(COMMON_VAR_FILE_ARGS)" \
-		TF_ARGS="$(COMMON_ARGS)"
+		TF_ARGS="$(APP_NAMES_ARG) $(COMMON_ARGS)"
 
 common-apply: ## [common] terraform apply
 	$(MAKE) apply \
@@ -92,6 +115,11 @@ lambda-plan:
 		PLAN_FILE_ARGS="-out=$(PLAN_FILE_NAME)"
 
 lambda-apply:
+	# $(MAKE) apply \
+	# 	$(LAMBDA_VAR_FILE_ARGS) \
+	# 	-var="image_uri=dummy" \ # image_uri が必須の場合、ダミー値を渡すか、TF側でoptionalにする
+	# 	-target=aws_ecr_repository.lambda_ecr_repo \
+	# 	-target=aws_cloudwatch_log_group.lambda_log_group
 	$(MAKE) ecr-login ECR_REGISTRY=$(ECR_REGISTRY)
 	$(MAKE) ecr-build-push \
 		ECR_IMAGE_URI=$(ECR_REGISTRY)/$(PROJECT_NAME)-$(ENV)-$(APP_NAME):$(shell git log -1 --format=%h -- lambdas/$(APP_NAME) 2>/dev/null | tr -d '[:space:]') \

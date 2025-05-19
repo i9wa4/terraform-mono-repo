@@ -25,3 +25,9 @@ variable "github_oidc_provider_url" {
   type        = string
   default     = "token.actions.githubusercontent.com"
 }
+
+variable "lambda_app_names" {
+  description = "A list of Lambda application names to create ECR repositories for (e.g., [\"hello-world\", \"another-app\"])"
+  type        = list(string)
+  default     = []
+}

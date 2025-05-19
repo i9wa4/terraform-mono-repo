@@ -16,18 +16,13 @@ locals {
 
 data "aws_caller_identity" "current" {}
 
+data "aws_ecr_repository" "this" {
+  name = local.lambda_function_name
+}
+
 resource "aws_cloudwatch_log_group" "lambda_log_group" {
   name              = "/aws/lambda/${local.lambda_function_name}"
   retention_in_days = var.log_retention_days != null ? var.log_retention_days : 7
-}
-
-resource "aws_ecr_repository" "lambda_ecr_repo" {
-  name                 = local.lambda_function_name
-  image_tag_mutability = "IMMUTABLE"
-
-  image_scanning_configuration {
-    scan_on_push = true
-  }
 }
 
 resource "aws_iam_role" "lambda_exec_role" {
@@ -82,7 +77,7 @@ resource "aws_iam_policy" "lambda_exec_policy" {
           "ecr:GetDownloadUrlForLayer"
         ],
         Effect   = "Allow",
-        Resource = aws_ecr_repository.lambda_ecr_repo.arn
+        Resource = data.aws_ecr_repository.this.arn
       }
     ]
   })
