@@ -10,6 +10,17 @@ from app.slack_service import SlackService
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+# AppConfigのインスタンスはLambdaのグローバルスコープで初期化することで、
+# 複数回の呼び出しでSecrets Managerへのアクセスをキャッシュする効果が期待できる
+# (Lambda Extensionを使用しない場合の簡易的なキャッシュ)
+# ただし、シークレットのローテーションを考慮する場合はTTLを設けるなどの工夫が必要
+try:
+    config = AppConfig()
+except Exception as e:
+    logger.critical(f"Failed to initialize AppConfig: {e}", exc_info=True)
+    # 設定読み込み失敗時はLambdaの初期化で失敗させる
+    raise
+
 
 def lambda_handler(event, context):
     logger.info(f"Received event: {json.dumps(event)}")

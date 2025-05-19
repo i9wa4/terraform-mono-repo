@@ -75,7 +75,8 @@ resource "aws_iam_policy" "lambda_exec_policy" {
       {
         Action = [
           "ecr:BatchGetImage",
-          "ecr:GetDownloadUrlForLayer"
+          "ecr:GetDownloadUrlForLayer",
+          "secretsmanager:GetSecretValue"
         ],
         Effect   = "Allow",
         Resource = data.aws_ecr_repository.this.arn
@@ -100,4 +101,12 @@ resource "aws_lambda_function" "this" {
   timeout     = var.lambda_timeout
 
   depends_on = [aws_cloudwatch_log_group.lambda_log_group]
+
+  environment {
+    variables = {
+      GEMINI_API_KEY_SECRET_NAME    = "terraform-mono-repo/${var.environment}/${var.project_name}"
+      SLACK_WEBHOOK_URL_SECRET_NAME = "terraform-mono-repo/${var.environment}/${var.project_name}"
+      MCP_SERVER_URL_SECRET_NAME    = "terraform-mono-repo/${var.environment}/${var.project_name}"
+    }
+  }
 }

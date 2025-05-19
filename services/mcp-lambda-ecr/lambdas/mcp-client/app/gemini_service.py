@@ -1,57 +1,80 @@
 # app/gemini_service.py
 import logging
 
-import google.genai as genai
+from google import genai as google_genai_sdk  # 新しいSDKのインポート
+# from google.generativeai import types as google_genai_types  # オプション設定用
 
 logger = logging.getLogger(__name__)
 
 
 class GeminiService:
     def __init__(self, api_key: str):
-        genai.configure(api_key=api_key)  #
-        # 利用可能なモデルを確認したい場合は以下を実行
-        # for m in genai.list_models():
-        #   if 'generateContent' in m.supported_generation_methods:
-        #     print(m.name)
-        self.model = genai.GenerativeModel(
-            "gemini-1.5-flash-latest"
-        )  # 例: gemini-1.5-flash-latest
+        # 新しいSDKでは、APIキーはClientオブジェクトの初期化時に渡すか、
+        # 環境変数 GOOGLE_API_KEY から自動的に読み込まれる
+        self.client = google_genai_sdk.Client(api_key=api_key)
+        self.model_name = "gemini-1.5-flash-latest"  # または "gemini-2.0-flash" など
 
     def summarize(self, text_to_summarize: str) -> str:
         try:
             prompt = f"以下のテキストを簡潔に要約してください:\n\n{textToSummarize}"
-            response = self.model.generate_content(prompt)  #
 
-            # response.text でテキスト部分を取得
-            # response.parts でより詳細な情報を取得可能
-            # response.prompt_feedback でプロンプトに関するフィードバックを確認可能
-            if response.candidates and response.candidates.content.parts:
-                summary_text = "".join(
-                    part.text for part in response.candidates.content.parts
-                )
+            # generation_config や safety_settings は config パラメータ経由で渡す
+            # 例:
+            # generation_config = google_genai_types.GenerationConfig(
+            #     candidate_count=1,
+            #     temperature=0.7,
+            # )
+            # safety_settings =
+            # response = self.client.models.generate_content(
+            #     model=self.model_name,
+            #     contents=prompt,
+            #     config=google_genai_types.GenerateContentConfig(
+            #         generation_config=generation_config,
+            #         safety_settings=safety_settings
+            #     )
+            # )
+
+            response = self.client.models.generate_content(
+                model=self.model_name, contents=prompt  # モデル名を指定
+            )
+
+            # 新しいSDKでも response.text でテキストを取得可能
+            if response.text:
+                summary_text = response.text
                 logger.info(f"Gemini API Response: {summary_text}")
                 return summary_text
-            elif response.text:  # シンプルなテキスト応答の場合
-                logger.info(f"Gemini API Response (simple text): {response.text}")
-                return response.text
             else:
+                # 詳細なエラーハンドリング (旧SDKのものを参考に調整)
                 logger.warning(
-                    f"Gemini API did not return expected content structure: {response}"
+                    f"Gemini API did not return expected text content: {response}"
                 )
-                # 安全性設定によりブロックされた可能性などを考慮
-                if response.prompt_feedback and response.prompt_feedback.block_reason:
+                # 安全性設定によりブロックされた場合の確認方法がSDKによって異なる可能性があるため、
+                # ドキュメントを参照して適切なエラーハンドリングを行う
+                # 例: response.prompt_feedback などで確認
+                if (
+                    hasattr(response, "prompt_feedback")
+                    and response.prompt_feedback
+                    and response.prompt_feedback.block_reason
+                ):
+                    block_reason_message = (
+                        response.prompt_feedback.block_reason_message
+                        or "Unknown block reason"
+                    )
                     logger.error(
-                        "Gemini content generation blocked:"
-                        f" {response.prompt_feedback.block_reason_message}"
+                        f"Gemini content generation blocked: {block_reason_message}"
                     )
                     raise ValueError(
-                        "Gemini content generation blocked:"
-                        f" {response.prompt_feedback.block_reason_message}"
+                        f"Gemini content generation blocked: {block_reason_message}"
                     )
                 raise ValueError(
-                    "Failed to get summary from Gemini API: No content found."
+                    "Failed to get summary from Gemini API: No text content found."
                 )
 
         except Exception as e:
             logger.error(f"Error calling Gemini API: {e}", exc_info=True)
+            # エラーの種類に応じて、より具体的なエラーメッセージを返すことも検討
+            if "API_KEY_INVALID" in str(e) or "PermissionDenied" in str(
+                e
+            ):  # これは一般的なエラー文字列の例
+                raise ValueError("Invalid Gemini API Key or insufficient permissions.")
             raise ValueError(f"Failed to get summary from Gemini API: {str(e)}")
