@@ -80,14 +80,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: ${{ needs.plan_apps.outputs.plan_artifact_name }}
-          path: ${{ env.TF_PLAN_FILE }}
+          path: ${{ env.TF_WORKING_DIR }}/${{ env.TF_PLAN_FILE }}
           retention-days: 1
-        working-directory: ${{ env.TF_WORKING_DIR }}
 
   apply_infra:
     name: "Apply Infra"
     runs-on: ubuntu-latest
-    needs: plan_infra
     if: github.event.inputs.action == 'apply'
     steps:
       - name: Checkout repository
@@ -103,12 +101,6 @@ jobs:
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
-
-      - name: Download Terraform Plan
-        uses: actions/download-artifact@v4
-        with:
-          name: ${{ needs.plan_apps.outputs.plan_artifact_name }}
-          path: ${{ env.TF_WORKING_DIR }}/${{ env.TF_PLAN_FILE }}
 
       - name: Terraform Apply
         env:

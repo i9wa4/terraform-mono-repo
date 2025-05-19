@@ -83,7 +83,7 @@ jobs:
       - name: Upload Terraform Plan
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ needs.plan_apps.outputs.plan_artifact_name }} # outputsを参照するように変更
+          name: apps-tfplan-${{ github.event.inputs.environment }}-${{ env.APP_NAME }}
           # Makefileは $(TF_WORKING_DIR)/lambdas/$(APP_NAME)/$(TF_PLAN_FILE) にプランファイルを作成
           path: ${{ env.TF_WORKING_DIR }}/lambdas/${{ env.APP_NAME }}/${{ env.TF_PLAN_FILE }}
           retention-days: 1
@@ -91,10 +91,9 @@ jobs:
   apply_apps:
     name: "Apply Apps"
     runs-on: ubuntu-latest
-    needs: plan_apps
     if: github.event.inputs.action == 'apply'
     environment:
-      name: ${{ needs.plan_apps.outputs.environment_name }}
+      name: ${{ github.event.inputs.environment }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -116,7 +115,7 @@ jobs:
       - name: Download Terraform Plan
         uses: actions/download-artifact@v4
         with:
-          name: ${{ needs.plan_apps.outputs.plan_artifact_name }}
+          name: apps-tfplan-${{ github.event.inputs.environment }}-${{ env.APP_NAME }}
           # ダウンロード先: Makefileがプランファイルを参照する $(TF_WORKING_DIR)/lambdas/$(APP_NAME)/ ディレクトリ
           path: ${{ env.TF_WORKING_DIR }}/lambdas/${{ env.APP_NAME }}
 
@@ -125,6 +124,6 @@ jobs:
           ENV: ${{ needs.plan_apps.outputs.environment_name }}
           TF_BACKEND_S3_BUCKET: ${{ secrets.TF_BACKEND_S3_BUCKET }}
         run: |
-          ls -l lambdas/${{ env.APP_NAME }}
+          ls -l ${{ env.TF_WORKING_DIR }}/lambdas/${{ env.APP_NAME }}/
           make lambda-apply APP_NAME=${{ env.APP_NAME }}
         working-directory: ${{ env.TF_WORKING_DIR }}
