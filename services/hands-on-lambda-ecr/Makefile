@@ -30,6 +30,13 @@ LAMBDA_VAR_FILE_ARGS := '-var-file=../../environments/$(ENV)/terraform.tfvars'
 # ----------------------
 # Public Targets
 #
+common-iam-plan: ## [common-iam] terraform plan to create initial IAM roles for GitHub Actions CI/CD bootstrap
+	$(MAKE) plan \
+		TARGET_DIR="$(COMMON_DIR)" \
+		PLAN_FILE_ARGS="-out=$(PLAN_FILE_NAME)" \
+		VAR_FILE_ARGS="$(COMMON_VAR_FILE_ARGS)" \
+		TF_ARGS="-target=aws_iam_role.terraform_hands_on_lambda_ecr -target=aws_iam_role_policy_attachment.github_actions_oidc_role_admin_attachment"
+
 common-plan: ## [common] terraform plan
 	$(MAKE) plan \
 		TARGET_DIR="$(COMMON_DIR)" \
