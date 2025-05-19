@@ -33,7 +33,8 @@ resource "aws_iam_role" "terraform_hands_on_lambda_ecr" {
   })
 }
 
+# TODO: Replace with a more specific policy for production use.
 resource "aws_iam_role_policy_attachment" "github_actions_oidc_role_admin_attachment" {
   role       = aws_iam_role.terraform_hands_on_lambda_ecr.name
-  policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess" # TODO: Replace with a more specific policy for production use.
+  policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
 }
