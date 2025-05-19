@@ -53,7 +53,7 @@ jobs:
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
-      - name: Terraform Plan for Lambda ${{ env.APP_NAME }}
+      - name: Terraform Plan for Lambda
         id: tf_plan
         env:
           ENV: ${{ github.event.inputs.environment || 'dev' }}
@@ -66,7 +66,7 @@ jobs:
           ls -l lambdas/${{ env.APP_NAME }}
         working-directory: ${{ env.TF_WORKING_DIR }}
 
-      - name: Terraform Apply for Lambda ${{ env.APP_NAME }}
+      - name: Terraform Apply for Lambda
         if: github.event.inputs.action == 'apply'
         env:
           ENV: ${{ github.event.inputs.environment || 'dev' }}
