@@ -1,5 +1,5 @@
 name: hands-on-lambda-ecr-infra
-run-name: ${{ github.event_name }} on ${{ github.ref_name }} by @${{ github.actor }} inputs ${{ github.event.inputs.environment }}-${{ github.event.inputs.action }}
+run-name: ${{ github.event_name }} on ${{ github.ref_name }} by @${{ github.actor }} inputs: [${{ github.event.inputs.environment }}, ${{ github.event.inputs.action }}]
 
 on:
   workflow_dispatch:
@@ -31,24 +31,10 @@ permissions:
   contents: read
 
 jobs:
-  plan_infra:
-    name: "Plan Infra"
+  plan_apply_infra:
+    name: "Plan/Apply Infra"
     runs-on: ubuntu-latest
-    outputs:
-      environment_name: ${{ steps.set_env.outputs.DEPLOY_ENV }}
-      plan_artifact_name: tfplan-${{ steps.set_env.outputs.DEPLOY_ENV }}
     steps:
-      - name: Determine Environment
-        id: set_env
-        run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "DEPLOY_ENV=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            echo "DEPLOY_ENV=dev" >> $GITHUB_OUTPUT
-          else
-            echo "DEPLOY_ENV=dev" >> $GITHUB_OUTPUT
-          fi
-
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -66,7 +52,7 @@ jobs:
       - name: Terraform Plan
         id: plan
         env:
-          ENV: ${{ github.event.inputs.environment || 'dev' }} # Default to 'dev' for PRs if not specified
+          ENV: ${{ github.event.inputs.environment || 'dev' }}
           TF_BACKEND_S3_BUCKET: ${{ secrets.TF_BACKEND_S3_BUCKET }}
         run: |
           make common-plan \
@@ -78,7 +64,7 @@ jobs:
       - name: Terraform Apply
         if: github.event.inputs.action == 'apply'
         env:
-          ENV: ${{ needs.plan_apps.outputs.environment_name }}
+          ENV: ${{ github.event.inputs.environment || 'dev' }}
           TF_BACKEND_S3_BUCKET: ${{ secrets.TF_BACKEND_S3_BUCKET }}
         run: |
           ls -l

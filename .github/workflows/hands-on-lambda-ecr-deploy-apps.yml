@@ -1,5 +1,5 @@
 name: hands-on-lambda-ecr-apps-hello-world
-run-name: ${{ github.event_name }} on ${{ github.ref_name }} by @${{ github.actor }} inputs ${{ github.event.inputs.environment }}-${{ github.event.inputs.action }}
+run-name: ${{ github.event_name }} on ${{ github.ref_name }} by @${{ github.actor }} inputs: [${{ github.event.inputs.environment }}, ${{ github.event.inputs.action }}]
 
 on:
   workflow_dispatch:
@@ -21,35 +21,21 @@ on:
           - apply
 
 env:
-  APP_NAME: "hello-world"
   AWS_REGION: "ap-northeast-1"
   TF_VERSION: "1.11.4"
   TF_WORKING_DIR: "./services/hands-on-lambda-ecr"
   TF_PLAN_FILE: "plan.tfplan"
+  APP_NAME: "hello-world"
 
 permissions:
   id-token: write
   contents: read
 
 jobs:
-  plan_apps:
-    name: "Plan Apps"
+  plan_apply_apps:
+    name: "Plan/Apply Apps"
     runs-on: ubuntu-latest
-    outputs:
-      environment_name: ${{ steps.set_env.outputs.DEPLOY_ENV }}
-      plan_artifact_name: apps-tfplan-${{ steps.set_env.outputs.DEPLOY_ENV }}-${{ env.APP_NAME }}
     steps:
-      - name: Determine Environment
-        id: set_env
-        run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "DEPLOY_ENV=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            echo "DEPLOY_ENV=dev" >> $GITHUB_OUTPUT
-          else
-            echo "DEPLOY_ENV=dev" >> $GITHUB_OUTPUT
-          fi
-
       - name: Checkout repository
         uses: actions/checkout@v4
 
@@ -70,7 +56,7 @@ jobs:
       - name: Terraform Plan for Lambda ${{ env.APP_NAME }}
         id: tf_plan
         env:
-          ENV: ${{ steps.set_env.outputs.DEPLOY_ENV }}
+          ENV: ${{ github.event.inputs.environment || 'dev' }}
           TF_BACKEND_S3_BUCKET: ${{ secrets.TF_BACKEND_S3_BUCKET }}
         run: |
           make lambda-plan \
@@ -83,7 +69,7 @@ jobs:
       - name: Terraform Apply for Lambda ${{ env.APP_NAME }}
         if: github.event.inputs.action == 'apply'
         env:
-          ENV: ${{ needs.plan_apps.outputs.environment_name }}
+          ENV: ${{ github.event.inputs.environment || 'dev' }}
           TF_BACKEND_S3_BUCKET: ${{ secrets.TF_BACKEND_S3_BUCKET }}
         run: |
           ls -l lambdas/${{ env.APP_NAME }}
