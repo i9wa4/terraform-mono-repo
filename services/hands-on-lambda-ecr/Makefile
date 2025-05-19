@@ -27,7 +27,7 @@ PLAN_FILE_NAME := plan.tfplan
 # PLAN_DESTROY_FILE_NAME := plan.destroy.tfplan
 
 LAMBDA_ARGS ?=
-LAMBDA_VAR_FILES = $(COMMON_VAR_FILES)
+LAMBDA_VAR_FILES := '-var-file=../../environments/$(ENV)/terraform.tfvars'
 
 # ----------------------
 # Public Targets
