@@ -33,7 +33,7 @@ permissions:
 
 jobs:
   plan_apps:
-    name: "Plan Apps (${{ github.event.inputs.environment }})"
+    name: "Plan Apps"
     runs-on: ubuntu-latest
     outputs:
       environment_name: ${{ steps.set_env.outputs.DEPLOY_ENV }}
@@ -88,7 +88,7 @@ jobs:
           retention-days: 1
 
   apply_apps:
-    name: "Apply Apps (${{ needs.plan_apps.outputs.environment }})"
+    name: "Apply Apps"
     runs-on: ubuntu-latest
     needs: plan_apps
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.action == 'apply'
