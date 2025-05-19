@@ -34,15 +34,15 @@ LAMBDA_VAR_FILES := '-var-file=../../environments/$(ENV)/terraform.tfvars'
 #
 common-plan: ## [common] terraform plan
 	$(MAKE) plan \
-		TARGET_DIR=$(COMMON_DIR) \
+		TARGET_DIR="$(COMMON_DIR)" \
 		PLAN_FILE_ARGS="-out=$(PLAN_FILE_NAME)" \
-		VAR_FILES=$(COMMON_VAR_FILES) \
-		TF_ARGS=$(COMMON_ARGS)
+		VAR_FILES="$(COMMON_VAR_FILES)" \
+		TF_ARGS="$(COMMON_ARGS)"
 
 common-apply: ## [common] terraform apply
 	$(MAKE) apply \
-		TARGET_DIR=$(COMMON_DIR) \
-		PLAN_FILE_ARGS=$(PLAN_FILE_NAME)
+		TARGET_DIR="$(COMMON_DIR)" \
+		PLAN_FILE_ARGS="$(PLAN_FILE_NAME)"
 
 hello-world-plan: ## [hello-world] terraform plan
 	$(MAKE) lambda-plan APP_NAME=hello-world
