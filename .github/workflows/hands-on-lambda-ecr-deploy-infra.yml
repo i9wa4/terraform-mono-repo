@@ -73,15 +73,16 @@ jobs:
           make common-plan \
             COMMON_VAR_FILES= \
             COMMON_ARGS='-var=github_repository=${{ github.repository }} -var=aws_region=${{ env.AWS_REGION }}'
-          ls -l
+          ls -l ${{ env.TF_WORKING_DIR }}
         working-directory: ${{ env.TF_WORKING_DIR }}
 
       - name: Upload Terraform Plan
         uses: actions/upload-artifact@v4
         with:
           name: ${{ needs.plan_apps.outputs.plan_artifact_name }}
-          path: ${{ env.TF_WORKING_DIR }}/${{ env.TF_PLAN_FILE }}
+          path: ${{ env.TF_PLAN_FILE }}
           retention-days: 1
+        working-directory: ${{ env.TF_WORKING_DIR }}
 
   apply_infra:
     name: "Apply Infra"
