@@ -34,7 +34,7 @@ permissions:
 jobs:
   plan_apply_apps:
     name: "Plan/Apply Apps"
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
