@@ -37,7 +37,6 @@ jobs:
     outputs:
       environment_name: ${{ steps.set_env.outputs.DEPLOY_ENV }}
       plan_artifact_name: tfplan-${{ steps.set_env.outputs.DEPLOY_ENV }}
-    if: github.event.inputs.action == 'plan'
     steps:
       - name: Determine Environment
         id: set_env
