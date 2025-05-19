@@ -53,13 +53,13 @@ lambda-plan: ## [lambda] terraform plan (e.g. make lambda-plan APP_NAME=hello-wo
 	$(MAKE) plan \
 		TARGET_DIR=lambdas/$(APP_NAME) \
 		VAR_FILE_ARGS=$(LAMBDA_VAR_FILE_ARGS) \
-		TF_ARGS='$(LAMBDA_ARGS) -var="image_uri=$(ECR_REGISTRY)/$(PROJECT_NAME)-$(ENV)-$(APP_NAME):$(shell git log -1 --format=%h -- lambdas/$(APP_NAME) 2>/dev/null | tr -d '[:space:]')"' \
+		TF_ARGS='$(LAMBDA_ARGS) -var="image_uri=$(ECR_REGISTRY)/$(PROJECT_NAME)-$(ENV)-$(APP_NAME):$(shell git log -1 --format=%h 2>/dev/null | tr -d '[:space:]')"' \
 		PLAN_FILE_ARGS="-out=$(PLAN_FILE_NAME)"
 
 lambda-apply: ## [lambda] build image & terraform apply (e.g. make lambda-apply APP_NAME=hello-world)
 	$(MAKE) ecr-login ECR_REGISTRY=$(ECR_REGISTRY)
 	$(MAKE) ecr-build-push \
-		ECR_IMAGE_URI=$(ECR_REGISTRY)/$(PROJECT_NAME)-$(ENV)-$(APP_NAME):$(shell git log -1 --format=%h -- lambdas/$(APP_NAME) 2>/dev/null | tr -d '[:space:]') \
+		ECR_IMAGE_URI=$(ECR_REGISTRY)/$(PROJECT_NAME)-$(ENV)-$(APP_NAME):$(shell git log -1 --format=%h 2>/dev/null | tr -d '[:space:]') \
 		APP_ROOT_DIR=lambdas/$(APP_NAME)
 	$(MAKE) apply \
 		TARGET_DIR=lambdas/$(APP_NAME) \
@@ -68,7 +68,7 @@ lambda-apply: ## [lambda] build image & terraform apply (e.g. make lambda-apply 
 lambda-apply-gha: ## [lambda] build image & terraform apply for GitHub Actions
 	# No need to log in to ECR
 	$(MAKE) ecr-build-push \
-		ECR_IMAGE_URI=$(ECR_REGISTRY)/$(PROJECT_NAME)-$(ENV)-$(APP_NAME):$(shell git log -1 --format=%h -- lambdas/$(APP_NAME) 2>/dev/null | tr -d '[:space:]') \
+		ECR_IMAGE_URI=$(ECR_REGISTRY)/$(PROJECT_NAME)-$(ENV)-$(APP_NAME):$(shell git log -1 --format=%h 2>/dev/null | tr -d '[:space:]') \
 		APP_ROOT_DIR=lambdas/$(APP_NAME)
 	$(MAKE) apply \
 		TARGET_DIR=lambdas/$(APP_NAME) \
