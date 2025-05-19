@@ -4,6 +4,11 @@ COPY app/app.py ${LAMBDA_TASK_ROOT}/
 COPY requirements.txt ${LAMBDA_TASK_ROOT}/
 
 # --target flag ensures libraries are installed to the correct directory for Lambda.
-RUN pip3 install --no-cache-dir -r requirements.txt --target "${LAMBDA_TASK_ROOT}"
+# RUN pip3 install --no-cache-dir -r requirements.txt --target "${LAMBDA_TASK_ROOT}"
+
+RUN echo "ARM64 testing"; \
+    uname -m; \
+    python3 --version; \
+    pip3 --version
 
 CMD [ "app.handler" ]
