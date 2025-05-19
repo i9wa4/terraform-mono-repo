@@ -64,24 +64,22 @@ jobs:
         id: tf_plan
         env:
           TF_BACKEND_S3_BUCKET: ${{ secrets.TF_BACKEND_S3_BUCKET }}
-          ENV: ${{ github.event.inputs.environment }}
         run: |
           make lambda-plan \
             APP_NAME=${{ matrix.app_name }} \
+            ENV=${{ github.event.inputs.environment }} \
             ECR_REGISTRY=${{ steps.ecr-login.outputs.registry }} \
             LAMBDA_VAR_FILE_ARGS= \
             LAMBDA_ARGS='-var=github_repository=${{ github.repository }} -var=aws_region=${{ env.AWS_REGION }}'
-          ls -l lambdas/${{ matrix.app_name }}
         working-directory: ${{ env.TF_WORKING_DIR }}
 
       - name: Terraform Apply for Lambda
         if: github.event.inputs.action == 'apply'
         env:
           TF_BACKEND_S3_BUCKET: ${{ secrets.TF_BACKEND_S3_BUCKET }}
-          ENV: ${{ github.event.inputs.environment }}
         run: |
-          ls -l lambdas/${{ matrix.app_name }}
           make lambda-apply-gha \
             APP_NAME=${{ matrix.app_name }} \
+            ENV=${{ github.event.inputs.environment }} \
             ECR_REGISTRY=${{ steps.ecr-login.outputs.registry }}
         working-directory: ${{ env.TF_WORKING_DIR }}
