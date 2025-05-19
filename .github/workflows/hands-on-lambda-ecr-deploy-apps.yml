@@ -76,7 +76,7 @@ jobs:
           make lambda-plan \
             APP_NAME=${{ env.APP_NAME }} \
             LAMBDA_VAR_FILES= \
-            LAMBDA_TF_ARGS='-var=github_repository=${{ github.repository }} -var=aws_region=${{ env.AWS_REGION }}'
+            LAMBDA_ARGS='-var=github_repository=${{ github.repository }} -var=aws_region=${{ env.AWS_REGION }}'
         working-directory: ${{ env.TF_WORKING_DIR }}
 
       - name: Upload Terraform Plan

@@ -90,7 +90,7 @@ lambda-plan:
 	$(MAKE) plan \
 		TARGET_DIR=lambdas/$(APP_NAME) \
 		VAR_FILES=$(LAMBDA_VAR_FILES) \
-		TF_ARGS='$(LAMBDA_TF_ARGS) -var="image_uri=$(ECR_REGISTRY)/$(PROJECT_NAME)-$(ENV)-$(APP_NAME):$(shell git log -1 --format=%h -- lambdas/$(APP_NAME) 2>/dev/null | tr -d '[:space:]')"' \
+		TF_ARGS='$(LAMBDA_ARGS) -var="image_uri=$(ECR_REGISTRY)/$(PROJECT_NAME)-$(ENV)-$(APP_NAME):$(shell git log -1 --format=%h -- lambdas/$(APP_NAME) 2>/dev/null | tr -d '[:space:]')"' \
 		PLAN_FILE_ARGS="-out=$(PLAN_FILE_NAME)"
 
 lambda-apply:
