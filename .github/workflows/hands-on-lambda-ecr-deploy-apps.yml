@@ -1,4 +1,4 @@
-name: hands-on-lambda-ecr-apps-hello-world
+name: hands-on-lambda-ecr-apps-hello
 run-name: ${{ github.event_name }} on ${{ github.ref_name }} by @${{ github.actor }} inputs ${{ github.event.inputs.environment }} ${{ github.event.inputs.action }}
 
 on:
@@ -25,7 +25,6 @@ env:
   TF_VERSION: "1.11.4"
   TF_WORKING_DIR: "./services/hands-on-lambda-ecr"
   TF_PLAN_FILE: "plan.tfplan"
-  APP_NAME: "hello-world"
 
 permissions:
   id-token: write
@@ -35,6 +34,13 @@ jobs:
   plan_apply_apps:
     name: "Plan/Apply Apps"
     runs-on: ubuntu-24.04-arm
+    strategy:
+      fail-fast: false
+      matrix:
+        # NOTE: if you want to add more apps, add them here
+        app_name:
+          - hello-world
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -62,11 +68,11 @@ jobs:
         run: |
           make lambda-plan \
             ENV=${{ github.event.inputs.environment || 'dev' }} \
-            APP_NAME=${{ env.APP_NAME }} \
+            APP_NAME=${{ matrix.app_name }} \
             ECR_REGISTRY=${{ steps.ecr-login.outputs.registry }} \
             LAMBDA_VAR_FILE_ARGS= \
             LAMBDA_ARGS='-var=github_repository=${{ github.repository }} -var=aws_region=${{ env.AWS_REGION }}'
-          ls -l lambdas/${{ env.APP_NAME }}
+          ls -l lambdas/${{ matrix.app_name }}
         working-directory: ${{ env.TF_WORKING_DIR }}
 
       - name: Terraform Apply for Lambda
@@ -75,9 +81,9 @@ jobs:
           TF_BACKEND_S3_BUCKET: ${{ secrets.TF_BACKEND_S3_BUCKET }}
           ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
         run: |
-          ls -l lambdas/${{ env.APP_NAME }}
+          ls -l lambdas/${{ matrix.app_name }}
           make lambda-apply-gha \
             ENV=${{ github.event.inputs.environment || 'dev' }} \
-            APP_NAME=${{ env.APP_NAME }} \
+            APP_NAME=${{ matrix.app_name }} \
             ECR_REGISTRY=${{ steps.ecr-login.outputs.registry }}
         working-directory: ${{ env.TF_WORKING_DIR }}
