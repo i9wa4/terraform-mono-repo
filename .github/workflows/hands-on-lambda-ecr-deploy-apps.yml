@@ -47,6 +47,7 @@ jobs:
 
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
+        id: ecr-login
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -56,12 +57,14 @@ jobs:
       - name: Terraform Plan for Lambda
         id: tf_plan
         env:
-          ENV: ${{ github.event.inputs.environment || 'dev' }}
           TF_BACKEND_S3_BUCKET: ${{ secrets.TF_BACKEND_S3_BUCKET }}
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
         run: |
           make lambda-plan \
+            ENV=${{ github.event.inputs.environment || 'dev' }} \
             APP_NAME=${{ env.APP_NAME }} \
-            LAMBDA_VAR_FILES= \
+            ECR_REGISTRY=${{ steps.ecr-login.outputs.registry }} \
+            LAMBDA_VAR_FILE_ARGS= \
             LAMBDA_ARGS='-var=github_repository=${{ github.repository }} -var=aws_region=${{ env.AWS_REGION }}'
           ls -l lambdas/${{ env.APP_NAME }}
         working-directory: ${{ env.TF_WORKING_DIR }}
@@ -69,9 +72,12 @@ jobs:
       - name: Terraform Apply for Lambda
         if: github.event.inputs.action == 'apply'
         env:
-          ENV: ${{ github.event.inputs.environment || 'dev' }}
           TF_BACKEND_S3_BUCKET: ${{ secrets.TF_BACKEND_S3_BUCKET }}
+          ECR_REGISTRY: ${{ steps.ecr-login.outputs.registry }}
         run: |
           ls -l lambdas/${{ env.APP_NAME }}
-          make lambda-apply APP_NAME=${{ env.APP_NAME }}
+          make lambda-apply-gha \
+            ENV=${{ github.event.inputs.environment || 'dev' }} \
+            APP_NAME=${{ env.APP_NAME }} \
+            ECR_REGISTRY=${{ steps.ecr-login.outputs.registry }}
         working-directory: ${{ env.TF_WORKING_DIR }}

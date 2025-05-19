@@ -19,15 +19,13 @@ AWS_REGION ?= ap-northeast-1
 ENV ?= dev
 
 COMMON_DIR := terraform
-COMMON_ARGS ?=
-COMMON_VAR_FILES := '-var-file=../environments/$(ENV)/terraform.tfvars'
+COMMON_VAR_FILE_ARGS := '-var-file=../environments/$(ENV)/terraform.tfvars'
 AWS_ACCOUNT_ID := $(strip $(shell terraform -chdir=$(COMMON_DIR) output -raw aws_account_id 2>/dev/null))
 ECR_REGISTRY := $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com
 PLAN_FILE_NAME := plan.tfplan
 # PLAN_DESTROY_FILE_NAME := plan.destroy.tfplan
 
-LAMBDA_ARGS ?=
-LAMBDA_VAR_FILES := '-var-file=../../environments/$(ENV)/terraform.tfvars'
+LAMBDA_VAR_FILE_ARGS := '-var-file=../../environments/$(ENV)/terraform.tfvars'
 
 # ----------------------
 # Public Targets
@@ -36,7 +34,7 @@ common-plan: ## [common] terraform plan
 	$(MAKE) plan \
 		TARGET_DIR="$(COMMON_DIR)" \
 		PLAN_FILE_ARGS="-out=$(PLAN_FILE_NAME)" \
-		VAR_FILES="$(COMMON_VAR_FILES)" \
+		VAR_FILE_ARGS="$(COMMON_VAR_FILE_ARGS)" \
 		TF_ARGS="$(COMMON_ARGS)"
 
 common-apply: ## [common] terraform apply
@@ -65,13 +63,13 @@ validate: init
 	terraform -chdir=$(TARGET_DIR) validate
 
 plan: validate
-	terraform -chdir=$(TARGET_DIR) plan $(PLAN_FILE_ARGS) $(VAR_FILES) $(TF_ARGS)
+	terraform -chdir=$(TARGET_DIR) plan $(PLAN_FILE_ARGS) $(VAR_FILE_ARGS) $(TF_ARGS)
 
 apply: init
 	terraform -chdir=$(TARGET_DIR) apply -auto-approve $(PLAN_FILE_ARGS)
 
 plan-destroy: validate
-	terraform -chdir=$(TARGET_DIR) plan -destroy $(PLAN_FILE_ARGS) $(VAR_FILES) $(TF_ARGS)
+	terraform -chdir=$(TARGET_DIR) plan -destroy $(PLAN_FILE_ARGS) $(VAR_FILE_ARGS) $(TF_ARGS)
 
 destroy: plan-destroy
 	terraform -chdir=$(TARGET_DIR) destroy -auto-approve $(PLAN_FILE_ARGS)
@@ -79,7 +77,7 @@ destroy: plan-destroy
 ecr-login:
 	aws ecr get-login-password --region $(AWS_REGION) | docker login --username AWS --password-stdin $(ECR_REGISTRY)
 
-ecr-build-push: ecr-login
+ecr-build-push:
 	docker build -t $(ECR_IMAGE_URI) $(APP_ROOT_DIR) --platform=linux/arm64 --provenance=false
 	docker push $(ECR_IMAGE_URI)
 
@@ -89,12 +87,21 @@ lambda-init:
 lambda-plan:
 	$(MAKE) plan \
 		TARGET_DIR=lambdas/$(APP_NAME) \
-		VAR_FILES=$(LAMBDA_VAR_FILES) \
+		VAR_FILE_ARGS=$(LAMBDA_VAR_FILE_ARGS) \
 		TF_ARGS='$(LAMBDA_ARGS) -var="image_uri=$(ECR_REGISTRY)/$(PROJECT_NAME)-$(ENV)-$(APP_NAME):$(shell git log -1 --format=%h -- lambdas/$(APP_NAME) 2>/dev/null | tr -d '[:space:]')"' \
 		PLAN_FILE_ARGS="-out=$(PLAN_FILE_NAME)"
 
 lambda-apply:
+	$(MAKE) ecr-login ECR_REGISTRY=$(ECR_REGISTRY)
 	$(MAKE) ecr-build-push \
+		ECR_IMAGE_URI=$(ECR_REGISTRY)/$(PROJECT_NAME)-$(ENV)-$(APP_NAME):$(shell git log -1 --format=%h -- lambdas/$(APP_NAME) 2>/dev/null | tr -d '[:space:]') \
+		APP_ROOT_DIR=lambdas/$(APP_NAME)
+	$(MAKE) apply \
+		TARGET_DIR=lambdas/$(APP_NAME) \
+		PLAN_FILE_ARGS=$(PLAN_FILE_NAME)
+
+lambda-apply-gha:
+	$(MAKE) ecr-build-push-gha \
 		ECR_IMAGE_URI=$(ECR_REGISTRY)/$(PROJECT_NAME)-$(ENV)-$(APP_NAME):$(shell git log -1 --format=%h -- lambdas/$(APP_NAME) 2>/dev/null | tr -d '[:space:]') \
 		APP_ROOT_DIR=lambdas/$(APP_NAME)
 	$(MAKE) apply \

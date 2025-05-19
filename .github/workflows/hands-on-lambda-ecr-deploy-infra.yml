@@ -56,7 +56,7 @@ jobs:
           TF_BACKEND_S3_BUCKET: ${{ secrets.TF_BACKEND_S3_BUCKET }}
         run: |
           make common-plan \
-            COMMON_VAR_FILES= \
+            COMMON_VAR_FILE_ARGS= \
             COMMON_ARGS='-var=github_repository=${{ github.repository }} -var=aws_region=${{ env.AWS_REGION }}'
           ls -l
         working-directory: ${{ env.TF_WORKING_DIR }}
