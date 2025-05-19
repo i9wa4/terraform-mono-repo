@@ -38,6 +38,13 @@ resource "aws_iam_role" "lambda_exec_role" {
         Principal = {
           Service = "lambda.amazonaws.com"
         }
+      },
+      {
+        Action = "secretmanager:GetSecretValue",
+        Effect = "Allow",
+        Principal = {
+          "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:terraform-mono-repo/${var.environment}/${var.project_name}"
+        }
       }
     ]
   })
@@ -75,8 +82,7 @@ resource "aws_iam_policy" "lambda_exec_policy" {
       {
         Action = [
           "ecr:BatchGetImage",
-          "ecr:GetDownloadUrlForLayer",
-          "secretsmanager:GetSecretValue"
+          "ecr:GetDownloadUrlForLayer"
         ],
         Effect   = "Allow",
         Resource = data.aws_ecr_repository.this.arn
