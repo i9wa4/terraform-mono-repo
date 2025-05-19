@@ -30,13 +30,6 @@ LAMBDA_VAR_FILE_ARGS := '-var-file=../../environments/$(ENV)/terraform.tfvars'
 # ----------------------
 # Public Targets
 #
-common-iam-plan: ## [common-iam] terraform plan to create initial IAM roles for GitHub Actions CI/CD bootstrap
-	$(MAKE) plan \
-		TARGET_DIR="$(COMMON_DIR)" \
-		PLAN_FILE_ARGS="-out=$(PLAN_FILE_NAME)" \
-		VAR_FILE_ARGS="$(COMMON_VAR_FILE_ARGS)" \
-		TF_ARGS="-target=aws_iam_role.terraform_hands_on_lambda_ecr -target=aws_iam_role_policy_attachment.github_actions_oidc_role_admin_attachment"
-
 common-plan: ## [common] terraform plan
 	$(MAKE) plan \
 		TARGET_DIR="$(COMMON_DIR)" \
@@ -95,13 +88,13 @@ lambda-plan:
 	$(MAKE) plan \
 		TARGET_DIR=lambdas/$(APP_NAME) \
 		VAR_FILE_ARGS=$(LAMBDA_VAR_FILE_ARGS) \
-		TF_ARGS='$(LAMBDA_ARGS) -var="image_uri=$(ECR_REGISTRY)/$(PROJECT_NAME)-$(ENV)-$(APP_NAME):$(shell git log -1 --format=%h -- lambdas/$(APP_NAME) 2>/dev/null | tr -d '[:space:]')"' \
+		TF_ARGS='$(LAMBDA_ARGS) -var="image_uri=$(ECR_REGISTRY)/$(PROJECT_NAME)-$(APP_NAME):$(shell git log -1 --format=%h -- lambdas/$(APP_NAME) 2>/dev/null | tr -d '[:space:]')"' \
 		PLAN_FILE_ARGS="-out=$(PLAN_FILE_NAME)"
 
 lambda-apply:
 	$(MAKE) ecr-login ECR_REGISTRY=$(ECR_REGISTRY)
 	$(MAKE) ecr-build-push \
-		ECR_IMAGE_URI=$(ECR_REGISTRY)/$(PROJECT_NAME)-$(ENV)-$(APP_NAME):$(shell git log -1 --format=%h -- lambdas/$(APP_NAME) 2>/dev/null | tr -d '[:space:]') \
+		ECR_IMAGE_URI=$(ECR_REGISTRY)/$(PROJECT_NAME)-$(APP_NAME):$(shell git log -1 --format=%h -- lambdas/$(APP_NAME) 2>/dev/null | tr -d '[:space:]') \
 		APP_ROOT_DIR=lambdas/$(APP_NAME)
 	$(MAKE) apply \
 		TARGET_DIR=lambdas/$(APP_NAME) \
@@ -109,7 +102,7 @@ lambda-apply:
 
 lambda-apply-gha:
 	$(MAKE) ecr-build-push \
-		ECR_IMAGE_URI=$(ECR_REGISTRY)/$(PROJECT_NAME)-$(ENV)-$(APP_NAME):$(shell git log -1 --format=%h -- lambdas/$(APP_NAME) 2>/dev/null | tr -d '[:space:]') \
+		ECR_IMAGE_URI=$(ECR_REGISTRY)/$(PROJECT_NAME)-$(APP_NAME):$(shell git log -1 --format=%h -- lambdas/$(APP_NAME) 2>/dev/null | tr -d '[:space:]') \
 		APP_ROOT_DIR=lambdas/$(APP_NAME)
 	$(MAKE) apply \
 		TARGET_DIR=lambdas/$(APP_NAME) \

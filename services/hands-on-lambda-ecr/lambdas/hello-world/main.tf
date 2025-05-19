@@ -11,7 +11,7 @@ provider "aws" {
 }
 
 locals {
-  lambda_function_name = "${var.project_name}-${var.environment}-${var.app_name}"
+  lambda_function_name = "${var.project_name}-${var.app_name}"
 }
 
 data "aws_caller_identity" "current" {}
