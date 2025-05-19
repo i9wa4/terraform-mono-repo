@@ -38,7 +38,6 @@ jobs:
     outputs:
       environment_name: ${{ steps.set_env.outputs.DEPLOY_ENV }}
       plan_artifact_name: apps-tfplan-${{ steps.set_env.outputs.DEPLOY_ENV }}-${{ env.APP_NAME }}
-    if: github.event.inputs.action == 'plan'
     steps:
       - name: Determine Environment
         id: set_env
@@ -78,52 +77,15 @@ jobs:
             APP_NAME=${{ env.APP_NAME }} \
             LAMBDA_VAR_FILES= \
             LAMBDA_ARGS='-var=github_repository=${{ github.repository }} -var=aws_region=${{ env.AWS_REGION }}'
+          ls -l lambdas/${{ env.APP_NAME }}
         working-directory: ${{ env.TF_WORKING_DIR }}
 
-      - name: Upload Terraform Plan
-        uses: actions/upload-artifact@v4
-        with:
-          name: apps-tfplan-${{ github.event.inputs.environment }}-${{ env.APP_NAME }}
-          # Makefileは $(TF_WORKING_DIR)/lambdas/$(APP_NAME)/$(TF_PLAN_FILE) にプランファイルを作成
-          path: ${{ env.TF_WORKING_DIR }}/lambdas/${{ env.APP_NAME }}/${{ env.TF_PLAN_FILE }}
-          retention-days: 1
-
-  apply_apps:
-    name: "Apply Apps"
-    runs-on: ubuntu-latest
-    if: github.event.inputs.action == 'apply'
-    environment:
-      name: ${{ github.event.inputs.environment }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Configure AWS credentials using OIDC
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.HANDS_ON_LAMBDA_ECR_TERRAFORM_IAM }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Login to Amazon ECR
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ${{ env.TF_VERSION }}
-
-      - name: Download Terraform Plan
-        uses: actions/download-artifact@v4
-        with:
-          name: apps-tfplan-${{ github.event.inputs.environment }}-${{ env.APP_NAME }}
-          # ダウンロード先: Makefileがプランファイルを参照する $(TF_WORKING_DIR)/lambdas/$(APP_NAME)/ ディレクトリ
-          path: ${{ env.TF_WORKING_DIR }}/lambdas/${{ env.APP_NAME }}
-
-      - name: Terraform Apply for ${{ env.APP_NAME }} Lambda
+      - name: Terraform Apply for Lambda ${{ env.APP_NAME }}
+        if: github.event.inputs.action == 'apply'
         env:
           ENV: ${{ needs.plan_apps.outputs.environment_name }}
           TF_BACKEND_S3_BUCKET: ${{ secrets.TF_BACKEND_S3_BUCKET }}
         run: |
-          ls -l ${{ env.TF_WORKING_DIR }}/lambdas/${{ env.APP_NAME }}/
+          ls -l lambdas/${{ env.APP_NAME }}
           make lambda-apply APP_NAME=${{ env.APP_NAME }}
         working-directory: ${{ env.TF_WORKING_DIR }}

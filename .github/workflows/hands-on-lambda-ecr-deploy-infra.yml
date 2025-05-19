@@ -73,40 +73,15 @@ jobs:
           make common-plan \
             COMMON_VAR_FILES= \
             COMMON_ARGS='-var=github_repository=${{ github.repository }} -var=aws_region=${{ env.AWS_REGION }}'
-          ls -l ${{ env.TF_WORKING_DIR }}
+          ls -l
         working-directory: ${{ env.TF_WORKING_DIR }}
 
-      - name: Upload Terraform Plan
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ needs.plan_apps.outputs.plan_artifact_name }}
-          path: ${{ env.TF_WORKING_DIR }}/${{ env.TF_PLAN_FILE }}
-          retention-days: 1
-
-  apply_infra:
-    name: "Apply Infra"
-    runs-on: ubuntu-latest
-    if: github.event.inputs.action == 'apply'
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Configure AWS credentials using OIDC
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.HANDS_ON_LAMBDA_ECR_TERRAFORM_IAM }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: ${{ env.TF_VERSION }}
-
       - name: Terraform Apply
+        if: github.event.inputs.action == 'apply'
         env:
           ENV: ${{ needs.plan_apps.outputs.environment_name }}
           TF_BACKEND_S3_BUCKET: ${{ secrets.TF_BACKEND_S3_BUCKET }}
         run: |
-          ls -l ${{ env.TF_WORKING_DIR }}
+          ls -l
           make common-apply
         working-directory: ${{ env.TF_WORKING_DIR }}
