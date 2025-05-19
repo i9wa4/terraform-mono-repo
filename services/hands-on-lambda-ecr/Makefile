@@ -18,20 +18,31 @@ PROJECT_NAME ?= hands-on-lambda-ecr
 AWS_REGION ?= ap-northeast-1
 ENV ?= dev
 
-COMMON_TF_DIR := terraform
-COMMON_TF_CMD_ARGS := '-var-file=../environments/$(ENV)/terraform.tfvars'
-AWS_ACCOUNT_ID := $(strip $(shell terraform -chdir=$(COMMON_TF_DIR) output -raw aws_account_id 2>/dev/null))
+COMMON_DIR := terraform
+COMMON_ARGS ?=
+COMMON_VAR_FILES := '-var-file=../environments/$(ENV)/terraform.tfvars'
+AWS_ACCOUNT_ID := $(strip $(shell terraform -chdir=$(COMMON_DIR) output -raw aws_account_id 2>/dev/null))
 ECR_REGISTRY := $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com
 PLAN_FILE_NAME := plan.tfplan
+# PLAN_DESTROY_FILE_NAME := plan.destroy.tfplan
+
+LAMBDA_ARGS ?=
+LAMBDA_VAR_FILES := '-var-file=../../environments/$(ENV)/terraform.tfvars'
 
 # ----------------------
 # Public Targets
 #
 common-plan: ## [common] terraform plan
-	$(MAKE) plan TARGET_TF_DIR=$(COMMON_TF_DIR) TF_CMD_ARGS=$(COMMON_TF_CMD_ARGS) PLAN_FILE_OUTPUT_OPTION="-out=$(PLAN_FILE_NAME)"
+	$(MAKE) plan \
+		TARGET_DIR=$(COMMON_DIR) \
+		PLAN_FILE_ARGS="-out=$(PLAN_FILE_NAME)" \
+		VAR_FILES=$(COMMON_VAR_FILES) \
+		TF_ARGS=$(COMMON_ARGS)
 
 common-apply: ## [common] terraform apply
-	$(MAKE) apply TARGET_TF_DIR=$(COMMON_TF_DIR) PLAN_FILE_INPUT_ARG=$(PLAN_FILE_NAME)
+	$(MAKE) apply \
+		TARGET_DIR=$(COMMON_DIR) \
+		PLAN_FILE_ARGS=$(PLAN_FILE_NAME)
 
 hello-world-plan: ## [hello-world] terraform plan
 	$(MAKE) lambda-plan APP_NAME=hello-world
@@ -43,27 +54,27 @@ hello-world-apply: ## [hello-world] terraform apply
 # Private Targets
 #
 init:
-	terraform -chdir=$(TARGET_TF_DIR) init -reconfigure \
+	terraform -chdir=$(TARGET_DIR) init -reconfigure \
 		-backend-config="region=$(AWS_REGION)" \
 		-backend-config="bucket=$(TF_BACKEND_S3_BUCKET)" \
-		-backend-config="key=$(PROJECT_NAME)/$(TARGET_TF_DIR)/terraform.tfstate" \
+		-backend-config="key=$(PROJECT_NAME)/$(TARGET_DIR)/terraform.tfstate" \
 		-backend-config="encrypt=true" \
 		-backend-config="use_lockfile=true"
 
 validate: init
-	terraform -chdir=$(TARGET_TF_DIR) validate
+	terraform -chdir=$(TARGET_DIR) validate
 
 plan: validate
-	terraform -chdir=$(TARGET_TF_DIR) plan $(TF_CMD_ARGS) $(PLAN_FILE_OUTPUT_OPTION)
+	terraform -chdir=$(TARGET_DIR) plan $(PLAN_FILE_ARGS) $(VAR_FILES) $(TF_ARGS)
 
 apply: init
-	terraform -chdir=$(TARGET_TF_DIR) apply -auto-approve $(PLAN_FILE_INPUT_ARG)
+	terraform -chdir=$(TARGET_DIR) apply -auto-approve $(PLAN_FILE_ARGS)
 
 plan-destroy: validate
-	terraform -chdir=$(TARGET_TF_DIR) plan -destroy $(TF_CMD_ARGS) $(PLAN_FILE_OUTPUT_OPTION)
+	terraform -chdir=$(TARGET_DIR) plan -destroy $(PLAN_FILE_ARGS) $(VAR_FILES) $(TF_ARGS)
 
 destroy: plan-destroy
-	terraform -chdir=$(TARGET_TF_DIR) destroy -auto-approve $(PLAN_FILE_INPUT_ARG)
+	terraform -chdir=$(TARGET_DIR) destroy -auto-approve $(PLAN_FILE_ARGS)
 
 ecr-login:
 	aws ecr get-login-password --region $(AWS_REGION) | docker login --username AWS --password-stdin $(ECR_REGISTRY)
@@ -73,18 +84,19 @@ ecr-build-push: ecr-login
 	docker push $(ECR_IMAGE_URI)
 
 lambda-init:
-	$(MAKE) init TARGET_TF_DIR=lambdas/$(APP_NAME)
+	$(MAKE) init TARGET_DIR=lambdas/$(APP_NAME)
 
 lambda-plan:
 	$(MAKE) plan \
-		TARGET_TF_DIR=lambdas/$(APP_NAME) \
-		TF_CMD_ARGS='-var-file=../../environments/$(ENV)/terraform.tfvars -var="image_uri=$(ECR_REGISTRY)/$(PROJECT_NAME)-$(ENV)-$(APP_NAME):$(shell git log -1 --format=%h -- lambdas/$(APP_NAME) 2>/dev/null | tr -d '[:space:]')"'\
-		PLAN_FILE_OUTPUT_OPTION="-out=$(PLAN_FILE_NAME)"
+		TARGET_DIR=lambdas/$(APP_NAME) \
+		VAR_FILES=$(LAMBDA_VAR_FILES) \
+		TF_ARGS='$(LAMBDA_ARGS) -var="image_uri=$(ECR_REGISTRY)/$(PROJECT_NAME)-$(ENV)-$(APP_NAME):$(shell git log -1 --format=%h -- lambdas/$(APP_NAME) 2>/dev/null | tr -d '[:space:]')"' \
+		PLAN_FILE_ARGS="-out=$(PLAN_FILE_NAME)"
 
 lambda-apply:
 	$(MAKE) ecr-build-push \
 		ECR_IMAGE_URI=$(ECR_REGISTRY)/$(PROJECT_NAME)-$(ENV)-$(APP_NAME):$(shell git log -1 --format=%h -- lambdas/$(APP_NAME) 2>/dev/null | tr -d '[:space:]') \
 		APP_ROOT_DIR=lambdas/$(APP_NAME)
 	$(MAKE) apply \
-		TARGET_TF_DIR=lambdas/$(APP_NAME) \
-		PLAN_FILE_INPUT_ARG=$(PLAN_FILE_NAME)
+		TARGET_DIR=lambdas/$(APP_NAME) \
+		PLAN_FILE_ARGS=$(PLAN_FILE_NAME)

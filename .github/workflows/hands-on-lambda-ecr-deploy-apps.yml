@@ -59,11 +59,6 @@ jobs:
           role-to-assume: ${{ secrets.HANDS_ON_LAMBDA_ECR_TERRAFORM_IAM }}
           aws-region: ${{ env.AWS_REGION }}
 
-      # TODO: delete this step if not needed
-      - name: Get AWS Account ID
-        id: aws_account
-        run: echo "ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)" >> $GITHUB_OUTPUT
-
       - name: Login to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
 
@@ -78,8 +73,10 @@ jobs:
           ENV: ${{ steps.set_env.outputs.DEPLOY_ENV }}
           TF_BACKEND_S3_BUCKET: ${{ secrets.TF_BACKEND_S3_BUCKET }}
         run: |
-          make lambda-plan APP_NAME=${{ env.APP_NAME }} \
-            TF_CMD_ARGS='-var=github_repository=${{ github.repository }} -var=aws_region=${{ env.AWS_REGION }}'
+          make lambda-plan \
+            APP_NAME=${{ env.APP_NAME }} \
+            LAMBDA_VAR_FILES= \
+            LAMBDA_ARGS='-var=github_repository=${{ github.repository }} -var=aws_region=${{ env.AWS_REGION }}'
         working-directory: ${{ env.TF_WORKING_DIR }}
 
       - name: Upload Terraform Plan
@@ -128,6 +125,5 @@ jobs:
           TF_BACKEND_S3_BUCKET: ${{ secrets.TF_BACKEND_S3_BUCKET }}
         run: |
           ls -l lambdas/${{ env.APP_NAME }}
-          make lambda-apply APP_NAME=${{ env.APP_NAME }} \
-            TF_CMD_ARGS='-var=github_repository=${{ github.repository }} -var=aws_region=${{ env.AWS_REGION }}'
+          make lambda-apply APP_NAME=${{ env.APP_NAME }}
         working-directory: ${{ env.TF_WORKING_DIR }}
