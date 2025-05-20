@@ -22,14 +22,18 @@ data "aws_ecr_repository" "this" {
   name = local.lambda_function_name
 }
 
-resource "aws_cloudwatch_log_group" "lambda_log_group" {
-  name              = "/aws/lambda/${local.lambda_function_name}"
-  retention_in_days = var.log_retention_days != null ? var.log_retention_days : 7
+data "aws_secretsmanager_secret_version" "mcp_server_example" {
+  secret_id = "${var.project_name}/${var.environment}/mcp-server-example"
 }
 
 resource "aws_secretsmanager_secret" "this" {
   name        = local.secret_name
   description = "Secret for ${local.lambda_function_name}. Repository: ${var.github_repository}."
+}
+
+resource "aws_cloudwatch_log_group" "lambda_log_group" {
+  name              = "/aws/lambda/${local.lambda_function_name}"
+  retention_in_days = var.log_retention_days != null ? var.log_retention_days : 7
 }
 
 # --------------------
@@ -78,8 +82,21 @@ resource "aws_iam_policy" "lambda_exec_policy" {
         Action = "secretsmanager:GetSecretValue",
         Effect = "Allow",
         Resource = [
-          aws_secretsmanager_secret.this.arn
+          aws_secretsmanager_secret.this.arn,
+          data.aws_secretsmanager_secret_version.mcp_server_example.arn
         ]
+      },
+      {
+        Action = "lambda:InvokeFunctionUrl",
+        Effect = "Allow",
+        Resource = [
+          jsondecode(data.aws_secretsmanager_secret_version.mcp_server_example.secret_string).function_arn
+        ],
+        Condition = {
+          StringEquals = {
+            "lambda:FunctionUrlAuthType" = "AWS_IAM"
+          }
+        }
       }
     ]
   })
@@ -115,7 +132,8 @@ resource "aws_lambda_function" "this" {
 
   environment {
     variables = {
-      SECRET_NAME = local.secret_name
+      MCP_CLIENT_SECRET_NAME = local.secret_name
+      MCP_SERVER_EXAMPLE_SECRET_NAME = data.aws_secretsmanager_secret_version.mcp_server_example.name
     }
   }
 }

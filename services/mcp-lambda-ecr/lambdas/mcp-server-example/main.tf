@@ -13,12 +13,26 @@ provider "aws" {
 locals {
   app_name             = basename(abspath(path.module))
   lambda_function_name = "${var.project_name}-${var.environment}-${local.app_name}"
+  secret_name          = "${var.project_name}/${var.environment}/${local.app_name}"
 }
 
 data "aws_caller_identity" "current" {}
 
 data "aws_ecr_repository" "this" {
   name = local.lambda_function_name
+}
+
+resource "aws_secretsmanager_secret" "this" {
+  name        = local.secret_name
+  description = "Secret for ${local.lambda_function_name}. Repository: ${var.github_repository}. WARNING: Managed by Terraform."
+}
+
+resource "aws_secretsmanager_secret_version" "this" {
+  secret_id = aws_secretsmanager_secret.this.id
+  secret_string = jsonencode({
+    function_url = aws_lambda_function_url.this.function_url
+    function_arn = aws_lambda_function.this.arn
+  })
 }
 
 resource "aws_cloudwatch_log_group" "lambda_log_group" {
@@ -50,21 +64,6 @@ resource "aws_iam_policy" "lambda_exec_policy" {
   policy = jsonencode({
     Version = "2012-10-17",
     Statement = [
-      {
-        Action = [
-          "logs:CreateLogGroup"
-        ],
-        Effect   = "Allow",
-        Resource = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${local.lambda_function_name}:*"
-      },
-      {
-        Action = [
-          "logs:CreateLogStream",
-          "logs:PutLogEvents"
-        ],
-        Effect   = "Allow",
-        Resource = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${local.lambda_function_name}:log-stream:*"
-      },
       {
         Action = [
           "ecr:GetAuthorizationToken"
@@ -105,4 +104,15 @@ resource "aws_lambda_function" "this" {
   timeout     = var.lambda_timeout
 
   depends_on = [aws_cloudwatch_log_group.lambda_log_group]
+}
+
+resource "aws_lambda_function_url" "this" {
+  function_name      = aws_lambda_function.this.function_name
+  authorization_type = "AWS_IAM"
+
+  # 必要に応じてCORS設定
+  # cors {
+  #   allow_origins = ["*"] # 呼び出し元に応じて適切に設定
+  #   allow_methods = ["POST", "GET"]
+  # }
 }

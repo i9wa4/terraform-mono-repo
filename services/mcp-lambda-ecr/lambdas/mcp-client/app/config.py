@@ -10,9 +10,9 @@ logger = logging.getLogger(__name__)
 
 class AppConfig:
     def __init__(self):
-        gemini_api_key_secret_name = os.environ.get("GEMINI_API_KEY_SECRET_NAME")
-        slack_webhook_url_secret_name = os.environ.get("SLACK_WEBHOOK_URL_SECRET_NAME")
-        mcp_server_url_secret_name = os.environ.get("MCP_SERVER_URL_SECRET_NAME")
+        gemini_api_key_secret_name = os.environ.get("MCP_CLIENT_SECRET_NAME")
+        slack_webhook_url_secret_name = os.environ.get("MCP_CLIENT_SECRET_NAME")
+        mcp_server_url_secret_name = os.environ.get("MCP_SERVER_EXAMPLE_SECRET_NAME")
 
         # 環境変数とその期待される名前のペア
         expected_env_vars = {
@@ -74,7 +74,7 @@ class AppConfig:
             )
             if "SecretString" in mcp_secret_value:
                 self._mcp_server_url = json.loads(mcp_secret_value).get(
-                    "MCP_SERVER_URL"
+                    "FUNCTION_URL"
                 )
             else:
                 raise ValueError(
