@@ -30,8 +30,8 @@ resource "aws_secretsmanager_secret" "this" {
 resource "aws_secretsmanager_secret_version" "this" {
   secret_id = aws_secretsmanager_secret.this.id
   secret_string = jsonencode({
-    function_url = aws_lambda_function_url.this.function_url
-    function_arn = aws_lambda_function.this.arn
+    FUNCTION_URL = aws_lambda_function_url.this.function_url
+    FUNCTION_ARN = aws_lambda_function.this.arn
   })
 }
 
