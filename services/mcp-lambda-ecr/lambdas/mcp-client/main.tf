@@ -13,7 +13,7 @@ provider "aws" {
 locals {
   app_name             = basename(abspath(path.module))
   lambda_function_name = "${var.project_name}-${var.environment}-${local.app_name}"
-  # FIXME: "${var.github_repository}/${var.environment}/${var.project_name}"
+  secret_name          = "${var.project_name}/${var.environment}/${local.app_name}"
 }
 
 data "aws_caller_identity" "current" {}
@@ -27,6 +27,14 @@ resource "aws_cloudwatch_log_group" "lambda_log_group" {
   retention_in_days = var.log_retention_days != null ? var.log_retention_days : 7
 }
 
+resource "aws_secretsmanager_secret" "this" {
+  name        = local.secret_name
+  description = "Secret for ${local.lambda_function_name}. Repository: ${var.github_repository}."
+}
+
+# --------------------
+# Resources for Lambda
+#
 resource "aws_iam_role" "lambda_exec_role" {
   name = "${local.lambda_function_name}-exec-role"
 
@@ -39,13 +47,6 @@ resource "aws_iam_role" "lambda_exec_role" {
         Principal = {
           Service = "lambda.amazonaws.com"
         }
-      },
-      {
-        Action = "secretmanager:GetSecretValue",
-        Effect = "Allow",
-        Resource = [
-          "arn:aws:secretsmanager:${var.aws_region}:${data.aws_caller_identity.current.account_id}:secret:terraform-mono-repo/${var.environment}/${var.project_name}"
-        ]
       }
     ]
   })
@@ -58,21 +59,6 @@ resource "aws_iam_policy" "lambda_exec_policy" {
   policy = jsonencode({
     Version = "2012-10-17",
     Statement = [
-      {
-        Action = [
-          "logs:CreateLogGroup"
-        ],
-        Effect   = "Allow",
-        Resource = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${local.lambda_function_name}:*"
-      },
-      {
-        Action = [
-          "logs:CreateLogStream",
-          "logs:PutLogEvents"
-        ],
-        Effect   = "Allow",
-        Resource = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${local.lambda_function_name}:log-stream:*"
-      },
       {
         Action = [
           "ecr:GetAuthorizationToken"
@@ -89,14 +75,10 @@ resource "aws_iam_policy" "lambda_exec_policy" {
         Resource = data.aws_ecr_repository.this.arn
       },
       {
-        Action   = "secretsmanager:GetSecretValue",
-        Effect   = "Allow",
+        Action = "secretsmanager:GetSecretValue",
+        Effect = "Allow",
         Resource = [
-          # FIXME: correct the secret ARN
-          data.aws_secretsmanager_secret.generic_mcp_secret.arn,
-          # 他のシークレットを使用する場合は、ここに追加します
-          # data.aws_secretsmanager_secret.gemini_api_key.arn,
-          # data.aws_secretsmanager_secret.slack_webhook_url.arn
+          aws_secretsmanager_secret.this.arn
         ]
       }
     ]
@@ -108,22 +90,32 @@ resource "aws_iam_role_policy_attachment" "lambda_exec_policy_attachment" {
   policy_arn = aws_iam_policy.lambda_exec_policy.arn
 }
 
+resource "aws_iam_role_policy_attachment" "lambda_logs" {
+  role       = aws_iam_role.lambda_exec_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
 resource "aws_lambda_function" "this" {
   function_name = local.lambda_function_name
   role          = aws_iam_role.lambda_exec_role.arn
   package_type  = "Image"
   image_uri     = var.image_uri
-  architectures = [var.lambda_architecture]
+  architectures = [
+    var.lambda_architecture
+  ]
 
   memory_size = var.lambda_memory_size
   timeout     = var.lambda_timeout
 
-  depends_on = [aws_cloudwatch_log_group.lambda_log_group]
+  depends_on = [
+    aws_cloudwatch_log_group.lambda_log_group,
+    aws_iam_role_policy_attachment.lambda_exec_policy_attachment,
+    aws_iam_role_policy_attachment.lambda_logs
+  ]
 
   environment {
     variables = {
-      # FIXME:
-      APP_SECRET_NAME = "${var.github_repository}/${var.environment}/${var.project_name}"
+      SECRET_NAME = local.secret_name
     }
   }
 }

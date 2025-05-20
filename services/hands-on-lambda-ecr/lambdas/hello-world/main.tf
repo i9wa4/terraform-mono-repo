@@ -89,6 +89,11 @@ resource "aws_iam_role_policy_attachment" "lambda_exec_policy_attachment" {
   policy_arn = aws_iam_policy.lambda_exec_policy.arn
 }
 
+resource "aws_iam_role_policy_attachment" "lambda_logs" {
+  role       = aws_iam_role.lambda_exec_role.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+}
+
 resource "aws_lambda_function" "this" {
   function_name = local.lambda_function_name
   role          = aws_iam_role.lambda_exec_role.arn
