@@ -1,7 +1,7 @@
 # services/mcp-lambda-ecr/lambdas/mcp-client/app/gemini_service.py
 import logging
 
-import google.generativeai as genai  # Using the alias `genai` is common
+from google import genai
 
 logger = logging.getLogger(__name__)
 
