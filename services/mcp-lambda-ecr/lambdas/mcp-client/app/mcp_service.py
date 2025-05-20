@@ -1,7 +1,8 @@
-# app/mcp_service.py
-import json  # payload をjson文字列にするため
+# services/mcp-lambda-ecr/lambdas/mcp-client/app/mcp_service.py
+import json
 import logging
 import os
+import uuid
 
 import boto3
 import requests
@@ -13,106 +14,207 @@ from botocore.exceptions import PartialCredentialsError
 logger = logging.getLogger(__name__)
 
 
+class MCPServiceError(Exception):
+    """Custom exception for MCPService errors, potentially holding status and payload."""
+
+    def __init__(
+        self, message, status_code=None, error_payload=None, rpc_error_code=None
+    ):
+        super().__init__(message)
+        self.status_code = status_code
+        self.error_payload = error_payload
+        self.rpc_error_code = rpc_error_code
+
+
 class MCPService:
     def __init__(self, server_url: str):
         self.server_url = server_url
         if not self.server_url:
-            logger.error("MCPService initialized with no server_url.")
-            raise ValueError("MCP Server URL is not configured.")
+            logger.error("MCPService initialized with an empty server_url.")
+            raise ValueError("MCP Server URL is required and cannot be empty.")
 
         try:
             self.session = boto3.Session()
-            # Lambda実行ロールの一時認証情報を取得
             self.credentials = self.session.get_credentials()
             if self.credentials is None:
-                logger.error("Failed to get AWS credentials from session.")
-                raise ValueError("AWS credentials could not be loaded from session.")
+                raise ValueError("Could not load AWS credentials from session.")
 
             self.frozen_credentials = self.credentials.get_frozen_credentials()
             if self.frozen_credentials is None:
-                logger.error("Failed to get frozen AWS credentials.")
-                raise ValueError("Frozen AWS credentials could not be obtained.")
+                raise ValueError("Could not obtain frozen AWS credentials.")
 
-            # Lambdaの環境変数 'AWS_REGION' からリージョンを取得
-            self.aws_region = os.environ.get("AWS_REGION")
+            self.aws_region = os.environ.get("AWS_REGION") or self.session.region_name
             if not self.aws_region:
-                # セッションからリージョンを取得するフォールバック
-                self.aws_region = self.session.region_name
-                if not self.aws_region:
-                    logger.error(
-                        "AWS Region could not be determined. Ensure AWS_REGION"
-                        " environment variable is set or Lambda is configured with a"
-                        " region."
-                    )
-                    raise ValueError("AWS Region could not be determined.")
-
+                raise ValueError(
+                    "AWS Region could not be determined. Set AWS_REGION or configure"
+                    " session region."
+                )
             logger.info(
-                f"MCPService initialized for URL: {self.server_url} in region:"
+                f"MCPService initialized. URL: {self.server_url}, Region:"
                 f" {self.aws_region}"
             )
-
-        except (NoCredentialsError, PartialCredentialsError) as e:
+        except (
+            NoCredentialsError,
+            PartialCredentialsError,
+            ValueError,
+        ) as e:  # Catch specific init errors
             logger.error(
-                f"Error loading AWS credentials for MCPService: {e}", exc_info=True
+                f"Error initializing MCPService credentials or config: {e}",
+                exc_info=True,
             )
-            raise ValueError(f"Error loading AWS credentials for MCPService: {e}")
-        except Exception as e:  # その他のboto3初期化エラー
-            logger.error(f"Error initializing MCPService for SigV4: {e}", exc_info=True)
-            raise
+            raise  # Re-raise as a critical setup failure
 
-    def ask(self, query: str) -> dict:
-        url = self.server_url
-        # ターゲットLambda (mcp-server-example) が期待するペイロード形式
-        # mcp-server-example/app/lambda_function.py を見ると、{"query": "ユーザーの質問"} を期待
-        payload = {"query": query}
+    def _send_request(self, method_name: str, params: dict) -> dict:
+        """Internal method to send a JSON-RPC request with SigV4 signing."""
+        rpc_request_id = str(uuid.uuid4())
+        payload = {
+            "jsonrpc": "2.0",
+            "method": method_name,
+            "params": params,
+            "id": rpc_request_id,
+        }
         logger.info(
-            f"Sending query to MCP Server: {url} with payload: {json.dumps(payload)}"
+            f"Sending MCP Request ID {rpc_request_id} to {self.server_url}:"
+            f" Method='{method_name}', Params='{json.dumps(params)}'"
         )
 
         try:
-            aws_request = AWSRequest(
-                method="POST",  # ターゲットLambdaのHTTPメソッド
-                url=url,
-                data=json.dumps(payload),  # ペイロードをJSON文字列にする
-                headers={"Content-Type": "application/json"},
+            aws_http_request = AWSRequest(
+                method="POST",
+                url=self.server_url,
+                data=json.dumps(payload),
+                headers={
+                    "Content-Type": "application/json",
+                    "Accept": "application/json",
+                },
             )
-
-            # SigV4署名を追加 (サービス名は 'lambda')
             SigV4Auth(self.frozen_credentials, "lambda", self.aws_region).add_auth(
-                aws_request
+                aws_http_request
             )
-
-            prepped_request = aws_request.prepare()
-            logger.debug(f"Prepared MCP request headers: {prepped_request.headers}")
-            logger.debug(f"Prepared MCP request body: {prepped_request.body}")
+            prepared_request = aws_http_request.prepare()
 
             response = requests.request(
-                method=prepped_request.method,
-                url=prepped_request.url,
-                headers=prepped_request.headers,
-                data=prepped_request.body,
-                timeout=20,  # タイムアウトを少し長めに設定 (例: 20秒)
+                method=prepared_request.method,
+                url=prepared_request.url,
+                headers=prepared_request.headers,
+                data=prepared_request.body,
+                timeout=30,  # Increased timeout
             )
-            logger.info(f"MCP Server Response Status: {response.status_code}")
-            response.raise_for_status()  # HTTPエラーステータスコードの場合、例外を発生
-            return response.json()  # レスポンスがJSONの場合
+            logger.info(
+                f"MCP Response for ID {rpc_request_id}: Status={response.status_code},"
+                f" Headers='{response.headers.get('Content-Type')}'"
+            )
 
-        except requests.exceptions.HTTPError as e:
-            error_content = (
-                e.response.text if e.response is not None else "No response content"
-            )
+            # Regardless of HTTP status for JSON-RPC, try to parse JSON if content type suggests it
+            if "application/json" in response.headers.get("Content-Type", "").lower():
+                response_json = response.json()
+            else:  # If not JSON, treat as an error with raw text
+                logger.error(
+                    f"MCP server returned non-JSON response for ID {rpc_request_id}."
+                    f" Status: {response.status_code}, Content: {response.text[:500]}"
+                )
+                raise MCPServiceError(
+                    "MCP server returned non-JSON response (Status:"
+                    f" {response.status_code})",
+                    status_code=response.status_code,
+                    error_payload=response.text,
+                )
+
+            # Check for JSON-RPC level errors (even if HTTP 200)
+            if "error" in response_json:
+                rpc_error = response_json["error"]
+                rpc_error_code = rpc_error.get("code")
+                rpc_error_message = rpc_error.get("message", "Unknown RPC error")
+                logger.error(
+                    f"MCP JSON-RPC Error for ID {rpc_request_id}:"
+                    f" Code={rpc_error_code}, Message='{rpc_error_message}'"
+                )
+                raise MCPServiceError(
+                    f"MCP RPC Error: {rpc_error_message}",
+                    status_code=response.status_code,  # HTTP status might be 200
+                    error_payload=rpc_error,
+                    rpc_error_code=rpc_error_code,
+                )
+
+            if (
+                "result" not in response_json
+            ):  # Should not happen if no error and valid JSON-RPC
+                logger.error(
+                    f"MCP Invalid JSON-RPC (missing 'result') for ID {rpc_request_id}:"
+                    f" {response_json}"
+                )
+                raise MCPServiceError(
+                    "Invalid JSON-RPC response (missing 'result')",
+                    status_code=response.status_code,
+                    error_payload=response_json,
+                )
+
+            # Check if the RPC ID in response matches (optional, but good practice)
+            if response_json.get("id") != rpc_request_id:
+                logger.warning(
+                    f"MCP RPC ID mismatch for request {rpc_request_id}. Response ID:"
+                    f" {response_json.get('id')}"
+                )
+
+            return response_json  # Contains 'result', 'id', 'jsonrpc'
+
+        except requests.exceptions.JSONDecodeError as e:
             logger.error(
-                "HTTPError from MCP server:"
-                f" {e.response.status_code if e.response is not None else 'N/A'} -"
-                f" {error_content}",
+                f"Failed to decode JSON response for ID {rpc_request_id} from MCP"
+                " server. Status:"
+                f" {response.status_code if 'response' in locals() else 'N/A'}, Body:"
+                f" {response.text[:500] if 'response' in locals() else 'N/A'}",
                 exc_info=True,
             )
-            raise ConnectionError(
-                f"Failed to get response from MCP server: {str(e)}"
+            raise MCPServiceError(
+                f"Invalid JSON response from MCP server: {e}",
+                status_code=response.status_code if "response" in locals() else None,
             ) from e
-        except requests.exceptions.Timeout:
-            logger.error(f"Timeout connecting to MCP server: {url}", exc_info=True)
-            raise ConnectionError(f"Timeout connecting to MCP server: {url}")
-        except Exception as e:
-            logger.error(f"General error connecting to MCP server: {e}", exc_info=True)
-            raise ConnectionError(f"Failed to connect to MCP server: {str(e)}") from e
+        except (
+            requests.exceptions.RequestException
+        ) as e:  # Catches ConnectionError, Timeout, etc.
+            logger.error(
+                f"MCP Request failed for ID {rpc_request_id}: {e}", exc_info=True
+            )
+            raise MCPServiceError(f"MCP communication failure: {e}") from e
+        # MCPServiceError is re-raised if caught above
+
+    def list_tools(self) -> dict:
+        """Calls mcp.discovery.list_tools. Returns the 'result' field of the JSON-RPC response."""
+        # MCP standard: list_tools has no parameters
+        full_response = self._send_request(
+            method_name="mcp.discovery.list_tools", params={}
+        )
+        return full_response.get("result", {})  # e.g., {"tools": [...]}
+
+    def call_tool(self, tool_id: str, tool_params: dict) -> dict:
+        """
+        Calls mcp.tools.call_tool. Expects tool_params for the specific tool.
+        Returns the 'result' field (e.g., {"content": "..."}) of the JSON-RPC response.
+        The "content" is typically a JSON string, so it's parsed here.
+        """
+        mcp_standard_params = {
+            "tool_id": tool_id,
+            "params": tool_params,  # These are the parameters for the tool itself
+        }
+        full_response = self._send_request(
+            method_name="mcp.tools.call_tool", params=mcp_standard_params
+        )
+        tool_result_payload = full_response.get(
+            "result", {}
+        )  # e.g., {"content": "{\"key\":\"value\"}"}
+
+        if "content" in tool_result_payload:
+            content_str = tool_result_payload["content"]
+            if isinstance(content_str, str):
+                try:
+                    # The content from the tool is often a JSON string
+                    tool_result_payload["content"] = json.loads(content_str)
+                except json.JSONDecodeError:
+                    logger.warning(
+                        f"Content from tool '{tool_id}' was a string but not valid"
+                        f" JSON: '{content_str[:100]}...'"
+                    )
+                    # Keep it as a string if not parsable as JSON
+            # If content is already a dict/list (not per strict MCP spec for content but possible), leave as is
+        return tool_result_payload
