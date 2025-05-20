@@ -90,7 +90,7 @@ resource "aws_iam_policy" "lambda_exec_policy" {
         Action = "lambda:InvokeFunctionUrl",
         Effect = "Allow",
         Resource = [
-          jsondecode(data.aws_secretsmanager_secret_version.mcp_server_example.secret_string).function_arn
+          jsondecode(data.aws_secretsmanager_secret_version.mcp_server_example.secret_string).FUNCTION_ARN
         ],
         Condition = {
           StringEquals = {
