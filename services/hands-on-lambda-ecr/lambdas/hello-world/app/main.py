@@ -23,12 +23,12 @@ def lambda_handler(event, context):
         logger.info(f"Response status code: {response.status_code}")
 
         if response.status_code == 200:
-            logging.info(f"Request successful. Response: {response.text[:100]}...")
+            logger.info(f"Request successful. Response: {response.text[:100]}...")
         else:
-            logging.error(f"Request failed. Response: {response.text[:100]}...")
+            logger.error(f"Request failed. Response: {response.text[:100]}...")
 
         return {
-            "statusCode": 200,
+            "statusCode": response.status_code,
             "headers": {"Content-Type": "application/json"},
             "body": json.dumps(
                 {
@@ -37,6 +37,7 @@ def lambda_handler(event, context):
                         " container!"
                     ),
                     "event_received": event,
+                    "context_received": context
                 }
             ),
         }
