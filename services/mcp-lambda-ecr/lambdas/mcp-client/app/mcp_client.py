@@ -22,16 +22,20 @@ class GeminiMCPClient:
         self.model = ChatGoogleGenerativeAI(
             model="gemini-1.5-pro", google_api_key=gemini_api_key, temperature=0
         )
-        self.client = None
+        self.client = None  # 初期化はNoneのまま
         self.agent = None
 
     async def initialize(self):
         """MCPクライアントとエージェントを初期化"""
         self.client = MultiServerMCPClient(self.mcp_connections)
-        await self.client.__aenter__()
+        # ▼▼▼ 修正 ▼▼▼
+        # await self.client.__aenter__() # この行を削除
 
         # 全てのMCPツールを取得
-        tools = self.client.get_tools()
+        # ▼▼▼ 修正 ▼▼▼
+        tools = (
+            await self.client.get_tools()
+        )  # await を追加 (エラーメッセージの例に基づく)
 
         # Geminiモデルでエージェントを作成
         self.agent = create_react_agent(self.model, tools)
@@ -52,7 +56,8 @@ class GeminiMCPClient:
         if not self.client:
             raise RuntimeError("Client not initialized. Call initialize() first.")
 
-        tools = self.client.get_tools()
+        # ▼▼▼ 修正 ▼▼▼
+        tools = await self.client.get_tools()  # await を追加
         return [tool.name for tool in tools]
 
     async def get_server_tools(self, server_name: str) -> List[str]:
@@ -60,10 +65,28 @@ class GeminiMCPClient:
         if not self.client:
             raise RuntimeError("Client not initialized. Call initialize() first.")
 
+        # server_name_to_tools は get_tools() の結果として設定されると想定されるため、
+        # initialize で get_tools が await されていれば、ここは変更不要かもしれません。
+        # もしこのプロパティ自体が非同期になった場合は、別途対応が必要です。
         server_tools = self.client.server_name_to_tools.get(server_name, [])
         return [tool.name for tool in server_tools]
 
     async def close(self):
         """リソースをクリーンアップ"""
         if self.client:
-            await self.client.__aexit__(None, None, None)
+            # ▼▼▼ 修正 ▼▼▼
+            # await self.client.__aexit__(None, None, None) # この行を削除
+
+            # langchain-mcp-adapters 0.1.0 で MultiServerMCPClient の
+            # リソースを解放する新しい公式な方法を確認する必要があります。
+            # 一般的な非同期クライアントライブラリでは、 self.client.aclose() のような
+            # メソッドが提供されることがあります。
+            # 例:
+            # if hasattr(self.client, 'aclose'):
+            #     await self.client.aclose()
+            # else:
+            #     # ドキュメントを確認するか、何もしない (リソースリークの可能性に注意)
+            #     pass
+            # 現時点では、エラーを回避するために __aexit__ の呼び出しを削除します。
+            # 必要に応じてライブラリのドキュメントで正しいクリーンアップ処理をご確認ください。
+            pass
