@@ -38,7 +38,8 @@ def get_secret_value(
     secret_name: str, secret_key: str, region_name: str = os.environ.get("AWS_REGION")
 ) -> str:
     """AWS Secrets Managerからシークレット値を取得"""
-    client = boto3.client(service_name="secretsmanager", region_name=region_name)
+    session = boto3.session.Session()
+    client = session.client(service_name="secretsmanager", region_name=region_name)
     try:
         response = client.get_secret_value(SecretId=secret_name)
         secret_payload = response["SecretString"]
@@ -63,7 +64,9 @@ async def process_query(event: Dict[str, Any]) -> Dict[str, Any]:
         return {"statusCode": 400, "body": json.dumps({"error": "Message is required"})}
 
     client = GeminiMCPClient(
-        gemini_api_key=get_secret_value("THIS_SECRET_NAME", "GEMINI_API_KEY"),
+        gemini_api_key=get_secret_value(
+            os.environ.get("THIS_SECRET_NAME"), "GEMINI_API_KEY"
+        ),
         mcp_connections=MCP_CONNECTIONS,
     )
 
