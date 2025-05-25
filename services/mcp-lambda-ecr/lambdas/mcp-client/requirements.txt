@@ -1,4 +1,0 @@
-boto3
-google-genai
-requests
-mcp

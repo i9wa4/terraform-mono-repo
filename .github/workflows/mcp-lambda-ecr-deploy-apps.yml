@@ -39,7 +39,6 @@ jobs:
       matrix:
         # NOTE: if you want to add more apps, add them here
         app_name:
-          - hello-world
           - mcp-client
           - mcp-server-example
 

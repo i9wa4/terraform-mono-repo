@@ -1,0 +1,11 @@
+[project]
+name = "mcp-client"
+version = "0.1.0"
+requires-python = ">=3.13"
+dependencies = [
+  "boto3",
+  "langchain_core",
+  "langchain_google_genai",
+  "langchain_mcp_adapters",
+  "langgraph",
+]
