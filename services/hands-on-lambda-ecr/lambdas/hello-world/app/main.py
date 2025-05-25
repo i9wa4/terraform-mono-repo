@@ -37,7 +37,8 @@ def lambda_handler(event, context):
                         " container!"
                     ),
                     "event_received": event,
-                    "context_received": context
+                    "context_received": str(context),
+                    "response_received": response.text[:100]
                 }
             ),
         }
