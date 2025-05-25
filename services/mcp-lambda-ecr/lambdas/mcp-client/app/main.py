@@ -90,7 +90,8 @@ async def process_query(event: Dict[str, Any]) -> Dict[str, Any]:
                     "response": response,
                     "available_tools": available_tools,
                     "servers_connected": list(MCP_CONNECTIONS.keys()),
-                }
+                },
+                ensure_ascii=False,
             ),
         }
 
