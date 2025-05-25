@@ -1,23 +1,28 @@
 import asyncio
 import json
+import logging
 import os
 from typing import Any
 from typing import Dict
-import boto3
 
+import boto3
+from botocore.exceptions import BotoCoreError
 from mcp_client import GeminiMCPClient
 
-# Lambda環境変数から設定を取得
-GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
-# MCP接続設定（環境変数から取得）
+
 MCP_CONNECTIONS = {
     # "math": {
     #     "transport": "sse",
     #     "url": os.environ.get("MATH_SERVER_URL"),
     #     "headers": {"Authorization": f"Bearer {os.environ.get('MATH_SERVER_TOKEN')}"},
     # },
-    # "weather": {"transport": "websocket", "url": os.environ.get("WEATHER_SERVER_URL")},
+    # "weather": {
+    #     "transport": "websocket",
+    #     "url": os.environ.get("WEATHER_SERVER_URL")
+    # },
     # "database": {
     #     "transport": "sse",
     #     "url": os.environ.get("DATABASE_SERVER_URL"),
@@ -25,7 +30,26 @@ MCP_CONNECTIONS = {
     #         "Authorization": f"Bearer {os.environ.get('DATABASE_SERVER_TOKEN')}"
     #     },
     # },
+    "gitmcp": {"transport": "websocket", "url": "https://gitmcp.io/docs"}
 }
+
+
+def get_secret_value(
+    secret_name: str, secret_key: str, region_name: str = os.environ.get("AWS_REGION")
+) -> str:
+    """AWS Secrets Managerからシークレット値を取得"""
+    client = boto3.client(service_name="secretsmanager", region_name=region_name)
+    try:
+        response = client.get_secret_value(SecretId=secret_name)
+        secret_payload = response["SecretString"]
+        secret = json.loads(secret_payload)
+        return secret[secret_key]
+    except (BotoCoreError, json.JSONDecodeError, KeyError, TypeError) as e:
+        logger.error(
+            f"Error processing secret '{secret_name}' (key: '{secret_key}'):"
+            f" {type(e).__name__} - {str(e)}"
+        )
+        raise
 
 
 async def process_query(event: Dict[str, Any]) -> Dict[str, Any]:
@@ -39,7 +63,8 @@ async def process_query(event: Dict[str, Any]) -> Dict[str, Any]:
         return {"statusCode": 400, "body": json.dumps({"error": "Message is required"})}
 
     client = GeminiMCPClient(
-        gemini_api_key=GEMINI_API_KEY, mcp_connections=MCP_CONNECTIONS
+        gemini_api_key=get_secret_value("THIS_SECRET_NAME", "GEMINI_API_KEY"),
+        mcp_connections=MCP_CONNECTIONS,
     )
 
     try:
@@ -76,15 +101,6 @@ async def process_query(event: Dict[str, Any]) -> Dict[str, Any]:
 def lambda_handler(event, context):
     """Lambda関数のエントリーポイント"""
 
-    # 必要な環境変数をチェック
-    if not GEMINI_API_KEY:
-        return {
-            "statusCode": 500,
-            "body": json.dumps(
-                {"error": "GEMINI_API_KEY environment variable is required"}
-            ),
-        }
-
     # HTTPメソッドをチェック
     http_method = event.get("httpMethod", "")
 
@@ -96,7 +112,6 @@ def lambda_handler(event, context):
             return loop.run_until_complete(process_query(event))
         finally:
             loop.close()
-
     elif http_method == "GET":
         # ヘルスチェック
         return {
@@ -108,6 +123,5 @@ def lambda_handler(event, context):
                 }
             ),
         }
-
     else:
         return {"statusCode": 405, "body": json.dumps({"error": "Method not allowed"})}

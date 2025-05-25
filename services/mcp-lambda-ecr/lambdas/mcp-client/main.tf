@@ -39,6 +39,71 @@ resource "aws_secretsmanager_secret" "this" {
 # --------------------
 # Resources for Lambda
 #
+resource "aws_iam_policy" "lambda_exec_policy" {
+  name        = "${local.lambda_function_name}-exec-policy"
+  description = "IAM policy for Lambda ${local.lambda_function_name} to pull from ECR and write to CloudWatch Logs"
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Sid    = "ECRToken",
+        Effect = "Allow",
+        Action = [
+          "ecr:GetAuthorizationToken"
+        ],
+        Resource = [
+          "*" #tfsec:ignore:AWS099
+        ]
+      },
+      {
+        Sid    = "ECRImagePull",
+        Effect = "Allow",
+        Action = [
+          "ecr:BatchGetImage",
+          "ecr:GetDownloadUrlForLayer"
+        ],
+        Resource = [
+          data.aws_ecr_repository.this.arn
+        ]
+      },
+      {
+        Sid    = "CloudWatchLogsWrite",
+        Effect = "Allow",
+        Action = [
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ],
+        Resource = [
+          "${aws_cloudwatch_log_group.lambda_log_group.arn}:*"
+        ]
+      },
+      {
+        Sid    = "SecretsManagerRead",
+        Action = "secretsmanager:GetSecretValue",
+        Effect = "Allow",
+        Resource = [
+          aws_secretsmanager_secret.this.arn,
+          data.aws_secretsmanager_secret_version.mcp_server_example.arn
+        ]
+      },
+      {
+        Sid    = "LambdaCommunicate",
+        Action = "lambda:InvokeFunctionUrl",
+        Effect = "Allow",
+        Resource = [
+          jsondecode(data.aws_secretsmanager_secret_version.mcp_server_example.secret_string).FUNCTION_ARN
+        ],
+        Condition = {
+          StringEquals = {
+            "lambda:FunctionUrlAuthType" = "AWS_IAM"
+          }
+        }
+      }
+    ]
+  })
+}
+
 resource "aws_iam_role" "lambda_exec_role" {
   name = "${local.lambda_function_name}-exec-role"
 
@@ -56,60 +121,9 @@ resource "aws_iam_role" "lambda_exec_role" {
   })
 }
 
-resource "aws_iam_policy" "lambda_exec_policy" {
-  name        = "${local.lambda_function_name}-exec-policy"
-  description = "IAM policy for Lambda ${local.lambda_function_name} to pull from ECR and write to CloudWatch Logs"
-
-  policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Action = [
-          "ecr:GetAuthorizationToken"
-        ],
-        Effect   = "Allow",
-        Resource = "*" #tfsec:ignore:AWS099
-      },
-      {
-        Action = [
-          "ecr:BatchGetImage",
-          "ecr:GetDownloadUrlForLayer"
-        ],
-        Effect   = "Allow",
-        Resource = data.aws_ecr_repository.this.arn
-      },
-      {
-        Action = "secretsmanager:GetSecretValue",
-        Effect = "Allow",
-        Resource = [
-          aws_secretsmanager_secret.this.arn,
-          data.aws_secretsmanager_secret_version.mcp_server_example.arn
-        ]
-      },
-      {
-        Action = "lambda:InvokeFunctionUrl",
-        Effect = "Allow",
-        Resource = [
-          jsondecode(data.aws_secretsmanager_secret_version.mcp_server_example.secret_string).FUNCTION_ARN
-        ],
-        Condition = {
-          StringEquals = {
-            "lambda:FunctionUrlAuthType" = "AWS_IAM"
-          }
-        }
-      }
-    ]
-  })
-}
-
 resource "aws_iam_role_policy_attachment" "lambda_exec_policy_attachment" {
   role       = aws_iam_role.lambda_exec_role.name
   policy_arn = aws_iam_policy.lambda_exec_policy.arn
-}
-
-resource "aws_iam_role_policy_attachment" "lambda_logs" {
-  role       = aws_iam_role.lambda_exec_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
 resource "aws_lambda_function" "this" {
@@ -132,7 +146,8 @@ resource "aws_lambda_function" "this" {
 
   environment {
     variables = {
-      MCP_CLIENT_SECRET_NAME = local.secret_name
+      AWS_REGION                     = var.aws_region
+      THIS_SECRET_NAME               = local.secret_name
       MCP_SERVER_EXAMPLE_SECRET_NAME = data.aws_secretsmanager_secret_version.mcp_server_example.secret_id
     }
   }
