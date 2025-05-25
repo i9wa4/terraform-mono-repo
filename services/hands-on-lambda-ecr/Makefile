@@ -49,14 +49,14 @@ common-apply: ## [common] terraform apply
 		TARGET_DIR="$(COMMON_DIR)" \
 		PLAN_FILE_ARGS="$(PLAN_FILE_NAME)"
 
-lambda-plan: ## [lambda] terraform plan (e.g. make lambda-plan APP_NAME=hello-world)
+lambda-plan: ## [lambda] terraform plan (e.g. make lambda-plan APP_NAME=requester)
 	$(MAKE) plan \
 		TARGET_DIR=lambdas/$(APP_NAME) \
 		VAR_FILE_ARGS=$(LAMBDA_VAR_FILE_ARGS) \
 		TF_ARGS='$(LAMBDA_ARGS) -var="image_uri=$(ECR_REGISTRY)/$(PROJECT_NAME)-$(ENV)-$(APP_NAME):$(shell git log -1 --format=%h 2>/dev/null | tr -d '[:space:]')"' \
 		PLAN_FILE_ARGS="-out=$(PLAN_FILE_NAME)"
 
-lambda-apply: ## [lambda] build image & terraform apply (e.g. make lambda-apply APP_NAME=hello-world)
+lambda-apply: ## [lambda] build image & terraform apply (e.g. make lambda-apply APP_NAME=requester)
 	$(MAKE) ecr-login ECR_REGISTRY=$(ECR_REGISTRY)
 	$(MAKE) ecr-build-push \
 		ECR_IMAGE_URI=$(ECR_REGISTRY)/$(PROJECT_NAME)-$(ENV)-$(APP_NAME):$(shell git log -1 --format=%h 2>/dev/null | tr -d '[:space:]') \

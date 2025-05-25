@@ -27,7 +27,7 @@ variable "github_oidc_provider_url" {
 }
 
 variable "lambda_app_names" {
-  description = "A list of Lambda application names to create ECR repositories for (e.g., [\"hello-world\", \"another-app\"])"
+  description = "A list of Lambda application names to create ECR repositories for (e.g., [\"requester\", \"another-app\"])"
   type        = list(string)
   default     = []
 }
