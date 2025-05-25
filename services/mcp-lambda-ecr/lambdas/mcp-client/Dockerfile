@@ -23,6 +23,7 @@ RUN --mount=from=uv,source=/uv,target=/bin/uv \
     --mount=type=bind,source=uv.lock,target=uv.lock \
     --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     uv export --frozen --no-emit-workspace --no-dev --no-editable -o requirements.txt && \
+    cat requirements.txt && \
     uv pip install -r requirements.txt --target "${LAMBDA_TASK_ROOT}"
 
 FROM public.ecr.aws/lambda/python:3.13

@@ -58,6 +58,7 @@ lambda-plan: ## [lambda] terraform plan (e.g. make lambda-plan APP_NAME=hello-wo
 
 lambda-apply: ## [lambda] build image & terraform apply (e.g. make lambda-apply APP_NAME=hello-world)
 	$(MAKE) ecr-login ECR_REGISTRY=$(ECR_REGISTRY)
+	cd lambdas/$(APP_NAME) && uv lock
 	$(MAKE) ecr-build-push \
 		ECR_IMAGE_URI=$(ECR_REGISTRY)/$(PROJECT_NAME)-$(ENV)-$(APP_NAME):$(shell git log -1 --format=%h 2>/dev/null | tr -d '[:space:]') \
 		APP_ROOT_DIR=lambdas/$(APP_NAME)
