@@ -22,6 +22,11 @@ data "aws_ecr_repository" "this" {
   name = local.lambda_function_name
 }
 
+resource "aws_cloudwatch_log_group" "lambda_log_group" {
+  name              = "/aws/lambda/${local.lambda_function_name}"
+  retention_in_days = var.log_retention_days != null ? var.log_retention_days : 7
+}
+
 data "aws_secretsmanager_secret_version" "mcp_server_example" {
   secret_id = "${var.project_name}/${var.environment}/mcp-server-example"
 }
@@ -29,11 +34,6 @@ data "aws_secretsmanager_secret_version" "mcp_server_example" {
 resource "aws_secretsmanager_secret" "this" {
   name        = local.secret_name
   description = "Secret for ${local.lambda_function_name}. Repository: ${var.github_repository}."
-}
-
-resource "aws_cloudwatch_log_group" "lambda_log_group" {
-  name              = "/aws/lambda/${local.lambda_function_name}"
-  retention_in_days = var.log_retention_days != null ? var.log_retention_days : 7
 }
 
 # --------------------
