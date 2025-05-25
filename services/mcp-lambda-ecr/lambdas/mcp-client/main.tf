@@ -140,8 +140,7 @@ resource "aws_lambda_function" "this" {
 
   depends_on = [
     aws_cloudwatch_log_group.lambda_log_group,
-    aws_iam_role_policy_attachment.lambda_exec_policy_attachment,
-    aws_iam_role_policy_attachment.lambda_logs
+    aws_iam_role_policy_attachment.lambda_exec_policy_attachment
   ]
 
   environment {
