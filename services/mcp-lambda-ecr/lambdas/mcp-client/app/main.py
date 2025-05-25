@@ -6,8 +6,8 @@ from typing import Any
 from typing import Dict
 
 import boto3
+from app.mcp_client import GeminiMCPClient
 from botocore.exceptions import BotoCoreError
-from mcp_client import GeminiMCPClient
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
