@@ -26,6 +26,52 @@ resource "aws_cloudwatch_log_group" "lambda_log_group" {
   retention_in_days = var.log_retention_days != null ? var.log_retention_days : 7
 }
 
+# --------------------
+# Resources for Lambda
+#
+resource "aws_iam_policy" "lambda_exec_policy" {
+  name        = "${local.lambda_function_name}-exec-policy"
+  description = "IAM policy for Lambda ${local.lambda_function_name} to pull from ECR and write to CloudWatch Logs"
+
+  policy = jsonencode({
+    Version = "2012-10-17",
+    Statement = [
+      {
+        Sid    = "ECRToken",
+        Effect = "Allow",
+        Action = [
+          "ecr:GetAuthorizationToken"
+        ],
+        Resource = [
+          "*" #tfsec:ignore:AWS099
+        ]
+      },
+      {
+        Sid    = "ECRImagePull",
+        Effect = "Allow",
+        Action = [
+          "ecr:BatchGetImage",
+          "ecr:GetDownloadUrlForLayer"
+        ],
+        Resource = [
+          data.aws_ecr_repository.this.arn
+        ]
+      },
+      {
+        Sid    = "CloudWatchLogsWrite",
+        Effect = "Allow",
+        Action = [
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ],
+        Resource = [
+          "${aws_cloudwatch_log_group.lambda_log_group.arn}:*"
+        ]
+      }
+    ]
+  })
+}
+
 resource "aws_iam_role" "lambda_exec_role" {
   name = "${local.lambda_function_name}-exec-role"
 
@@ -43,55 +89,9 @@ resource "aws_iam_role" "lambda_exec_role" {
   })
 }
 
-resource "aws_iam_policy" "lambda_exec_policy" {
-  name        = "${local.lambda_function_name}-exec-policy"
-  description = "IAM policy for Lambda ${local.lambda_function_name} to pull from ECR and write to CloudWatch Logs"
-
-  policy = jsonencode({
-    Version = "2012-10-17",
-    Statement = [
-      {
-        Action = [
-          "logs:CreateLogGroup"
-        ],
-        Effect   = "Allow",
-        Resource = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${local.lambda_function_name}:*"
-      },
-      {
-        Action = [
-          "logs:CreateLogStream",
-          "logs:PutLogEvents"
-        ],
-        Effect   = "Allow",
-        Resource = "arn:aws:logs:${var.aws_region}:${data.aws_caller_identity.current.account_id}:log-group:/aws/lambda/${local.lambda_function_name}:log-stream:*"
-      },
-      {
-        Action = [
-          "ecr:GetAuthorizationToken"
-        ],
-        Effect   = "Allow",
-        Resource = "*" #tfsec:ignore:AWS099
-      },
-      {
-        Action = [
-          "ecr:BatchGetImage",
-          "ecr:GetDownloadUrlForLayer"
-        ],
-        Effect   = "Allow",
-        Resource = data.aws_ecr_repository.this.arn
-      }
-    ]
-  })
-}
-
 resource "aws_iam_role_policy_attachment" "lambda_exec_policy_attachment" {
   role       = aws_iam_role.lambda_exec_role.name
   policy_arn = aws_iam_policy.lambda_exec_policy.arn
-}
-
-resource "aws_iam_role_policy_attachment" "lambda_logs" {
-  role       = aws_iam_role.lambda_exec_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
 resource "aws_lambda_function" "this" {
@@ -99,10 +99,15 @@ resource "aws_lambda_function" "this" {
   role          = aws_iam_role.lambda_exec_role.arn
   package_type  = "Image"
   image_uri     = var.image_uri
-  architectures = [var.lambda_architecture]
+  architectures = [
+    var.lambda_architecture
+  ]
 
   memory_size = var.lambda_memory_size
   timeout     = var.lambda_timeout
 
-  depends_on = [aws_cloudwatch_log_group.lambda_log_group]
+  depends_on = [
+    aws_cloudwatch_log_group.lambda_log_group,
+    aws_iam_role_policy_attachment.lambda_exec_policy_attachment
+  ]
 }

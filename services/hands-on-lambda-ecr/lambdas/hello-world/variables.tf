@@ -10,13 +10,13 @@ variable "environment" {
   default     = "dev"
 }
 
-variable "aws_region" {
-  description = "AWS region for deployment."
+variable "github_repository" {
+  description = "The GitHub repository (e.g., your-org/your-repo) allowed to assume this role."
   type        = string
 }
 
-variable "github_repository" {
-  description = "The GitHub repository (e.g., your-org/your-repo) allowed to assume this role."
+variable "aws_region" {
+  description = "AWS region for deployment."
   type        = string
 }
 
