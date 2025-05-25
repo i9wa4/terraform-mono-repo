@@ -30,7 +30,7 @@ MCP_CONNECTIONS = {
     #         "Authorization": f"Bearer {os.environ.get('DATABASE_SERVER_TOKEN')}"
     #     },
     # },
-    "gitmcp": {"transport": "streamable-http", "url": "https://gitmcp.io/docs"}
+    "gitmcp": {"transport": "sse", "url": "https://gitmcp.io/docs"}
 }
 
 
