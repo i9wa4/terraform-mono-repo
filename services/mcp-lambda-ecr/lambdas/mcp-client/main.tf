@@ -145,7 +145,6 @@ resource "aws_lambda_function" "this" {
 
   environment {
     variables = {
-      AWS_REGION                     = var.aws_region
       THIS_SECRET_NAME               = local.secret_name
       MCP_SERVER_EXAMPLE_SECRET_NAME = data.aws_secretsmanager_secret_version.mcp_server_example.secret_id
     }
