@@ -13,27 +13,6 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
-MCP_CONNECTIONS = {
-    # "math": {
-    #     "transport": "sse",
-    #     "url": os.environ.get("MATH_SERVER_URL"),
-    #     "headers": {"Authorization": f"Bearer {os.environ.get('MATH_SERVER_TOKEN')}"},
-    # },
-    # "weather": {
-    #     "transport": "websocket",
-    #     "url": os.environ.get("WEATHER_SERVER_URL")
-    # },
-    # "database": {
-    #     "transport": "sse",
-    #     "url": os.environ.get("DATABASE_SERVER_URL"),
-    #     "headers": {
-    #         "Authorization": f"Bearer {os.environ.get('DATABASE_SERVER_TOKEN')}"
-    #     },
-    # },
-    "gitmcp": {"transport": "sse", "url": "https://gitmcp.io/docs"}
-}
-
-
 def get_secret_value(
     secret_name: str, secret_key: str, region_name: str = os.environ.get("AWS_REGION")
 ) -> str:
@@ -51,6 +30,32 @@ def get_secret_value(
             f" {type(e).__name__} - {str(e)}"
         )
         raise
+
+
+mcp_server_example_url_key = get_secret_value(
+    os.environ.get("THIS_SECRET_NAME"), "FUNCTION_URL"
+)
+
+MCP_CONNECTIONS = {
+    # "math": {
+    #     "transport": "sse",
+    #     "url": os.environ.get("MATH_SERVER_URL"),
+    #     "headers": {"Authorization": f"Bearer {os.environ.get('MATH_SERVER_TOKEN')}"},
+    # },
+    # "weather": {
+    #     "transport": "websocket",
+    #     "url": os.environ.get("WEATHER_SERVER_URL")
+    # },
+    # "database": {
+    #     "transport": "sse",
+    #     "url": os.environ.get("DATABASE_SERVER_URL"),
+    #     "headers": {
+    #         "Authorization": f"Bearer {os.environ.get('DATABASE_SERVER_TOKEN')}"
+    #     },
+    # },
+    "gitmcp": {"transport": "sse", "url": "https://gitmcp.io/docs"},
+    "mcp_server_example": {"transport": "sse", "url": f"{mcp_server_example_url_key}"},
+}
 
 
 async def process_query(event: Dict[str, Any]) -> Dict[str, Any]:
