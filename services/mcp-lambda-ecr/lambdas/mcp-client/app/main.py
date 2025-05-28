@@ -23,6 +23,9 @@ def get_secret_value(
         response = client.get_secret_value(SecretId=secret_name)
         secret_payload = response["SecretString"]
         secret = json.loads(secret_payload)
+        logger.info(
+            f"Successfully retrieved secret '{secret_name}' (key: '{secret_key}')"
+        )
         return secret[secret_key]
     except (BotoCoreError, json.JSONDecodeError, KeyError, TypeError) as e:
         logger.error(
@@ -64,6 +67,7 @@ async def process_query(event: Dict[str, Any]) -> Dict[str, Any]:
     # リクエストボディからメッセージを取得
     body = json.loads(event.get("body", "{}"))
     message = body.get("message", "")
+    logger.info(f"Received message: {message}")
 
     if not message:
         return {"statusCode": 400, "body": json.dumps({"error": "Message is required"})}
@@ -74,14 +78,19 @@ async def process_query(event: Dict[str, Any]) -> Dict[str, Any]:
         ),
         mcp_connections=MCP_CONNECTIONS,
     )
+    logger.info(
+        f"Initialized GeminiMCPClient with connections: {MCP_CONNECTIONS.keys()}"
+    )
 
     try:
         await client.initialize()
 
         # クエリを実行
+        logger.info(f"Querying with message: {message}")
         response = await client.query(message)
 
         # 利用可能なツール情報も含める
+        logger.info("Fetching available tools")
         available_tools = await client.get_available_tools()
 
         return {
