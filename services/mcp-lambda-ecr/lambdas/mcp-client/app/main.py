@@ -33,7 +33,7 @@ def get_secret_value(
 
 
 mcp_server_example_url_key = get_secret_value(
-    os.environ.get("THIS_SECRET_NAME"), "FUNCTION_URL"
+    os.environ.get("MCP_SERVER_EXAMPLE_SECRET_NAME"), "FUNCTION_URL"
 )
 
 MCP_CONNECTIONS = {
