@@ -15,18 +15,27 @@ logger.setLevel(logging.INFO)
 class GeminiMCPClient:
     """Gemini APIを使用して複数のMCPサーバーに接続するクライアント"""
 
-    def __init__(self, gemini_api_key: str, mcp_connections: Dict[str, Dict[str, Any]]):
+    def __init__(
+        self, gemini_api_key: str, mcp_connections: Dict[str, Dict[str, Any]]
+    ):  #
         logger.info(
-            "Initializing GeminiMCPClient with provided API key and connections."
+            "GeminiMCPClient __init__: Initializing with API key and connections."
         )
-        self.gemini_api_key = gemini_api_key
-        self.mcp_connections = mcp_connections
+        self.gemini_api_key = gemini_api_key  #
+        self.mcp_connections = mcp_connections  #
+        logger.info(
+            f"GeminiMCPClient __init__: MCP Connections: {self.mcp_connections}"
+        )
         self.model = ChatGoogleGenerativeAI(
             model="gemini-1.5-pro", google_api_key=gemini_api_key, temperature=0
+        )  #
+        logger.info(
+            "GeminiMCPClient __init__: ChatGoogleGenerativeAI model initialized."
         )
-        # MultiServerMCPClient のインスタンスをここで作成
-        self.client = MultiServerMCPClient(self.mcp_connections)
-        self.agent = None
+        self.client = MultiServerMCPClient(self.mcp_connections)  #
+        logger.info("GeminiMCPClient __init__: MultiServerMCPClient initialized.")
+        self.agent = None  #
+        logger.info("GeminiMCPClient __init__: Completed.")
 
     async def initialize(self):
         """MCPクライアントとエージェントを初期化"""
