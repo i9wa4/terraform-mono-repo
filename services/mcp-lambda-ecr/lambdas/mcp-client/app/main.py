@@ -86,7 +86,9 @@ async def process_query(event: Dict[str, Any]) -> Dict[str, Any]:
     )
 
     try:
+        logger.info("Attempting to initialize client...")
         await client.initialize()
+        logger.info("Client initialized successfully.")
 
         # クエリを実行
         logger.info(f"Querying with message: {message}")
