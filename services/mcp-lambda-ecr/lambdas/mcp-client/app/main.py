@@ -56,7 +56,10 @@ MCP_CONNECTIONS = {
     #         "Authorization": f"Bearer {os.environ.get('DATABASE_SERVER_TOKEN')}"
     #     },
     # },
-    "gitmcp": {"transport": "sse", "url": "https://gitmcp.io/docs"},
+    "gitmcp": {
+        "transport": "sse",
+        "url": "https://gitmcp.io/langchain-ai/langchain-mcp-adapters",
+    },
     # "mcp_server_example": {"transport": "sse", "url": f"{mcp_server_example_url_key}"},
 }
 
