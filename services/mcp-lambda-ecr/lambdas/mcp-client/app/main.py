@@ -90,11 +90,22 @@ async def process_query(event: Dict[str, Any]) -> Dict[str, Any]:
 
         # クエリを実行
         logger.info(f"Querying with message: {message}")
-        response = await client.query(message)
+        response_content_from_agent = await client.query(message)
+        logger.info(f"Received response: {response_content_from_agent}")
 
         # 利用可能なツール情報も含める
         logger.info("Fetching available tools")
         available_tools = await client.get_available_tools()
+
+        response_body_payload = {
+            "response": response_content_from_agent,
+            "available_tools": available_tools,
+            "servers_connected": list(MCP_CONNECTIONS.keys()),
+        }
+        logger.info(
+            "Final response body to be returned:"
+            f" {json.dumps(response_body_payload, ensure_ascii=False)}"
+        )
 
         return {
             "statusCode": 200,
@@ -103,11 +114,7 @@ async def process_query(event: Dict[str, Any]) -> Dict[str, Any]:
                 "Access-Control-Allow-Origin": "*",
             },
             "body": json.dumps(
-                {
-                    "response": response,
-                    "available_tools": available_tools,
-                    "servers_connected": list(MCP_CONNECTIONS.keys()),
-                },
+                response_body_payload,  # 上で作成したペイロードを使用
                 ensure_ascii=False,
             ),
         }
