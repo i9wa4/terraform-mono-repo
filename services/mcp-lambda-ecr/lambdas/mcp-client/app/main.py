@@ -60,7 +60,7 @@ MCP_CONNECTIONS = {
         "transport": "sse",
         "url": "https://gitmcp.io/langchain-ai/langchain-mcp-adapters",
     },
-    # "mcp_server_example": {"transport": "sse", "url": f"{mcp_server_example_url_key}"},
+    "mcp_server_example": {"transport": "sse", "url": f"{mcp_server_example_url_key}"},
 }
 
 

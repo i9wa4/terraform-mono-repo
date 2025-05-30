@@ -43,6 +43,5 @@ def get_server_status() -> str:
 
 
 if __name__ == "__main__":
-    # 標準入出力モードで実行
-    logger.info("MCPサーバーを標準入出力（stdio）モードで起動します")
-    mcp.run(transport="stdio")
+    logger.info("Starting MCP server in SSE mode...")
+    mcp.run(transport="sse")
