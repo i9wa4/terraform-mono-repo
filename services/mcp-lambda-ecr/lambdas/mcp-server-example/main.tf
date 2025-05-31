@@ -126,13 +126,22 @@ resource "aws_lambda_function" "this" {
   ]
 }
 
+# --------------------
+# Resource for Lambda Function URL
+#
+data "aws_iam_role" "mcp_client_lambda_role" {
+  name = "${var.project_name}-${var.environment}-mcp-client-exec-role"
+}
+
+resource "aws_lambda_permission" "allow_mcp_client_invoke" {
+  statement_id  = "AllowInvocationFromMcpClientOnly"
+  action        = "lambda:InvokeFunctionUrl"
+  function_name = aws_lambda_function.this.function_name
+  principal     = "iam.amazonaws.com"
+  source_arn    = data.aws_iam_role.mcp_client_lambda_role.arn
+}
+
 resource "aws_lambda_function_url" "this" {
   function_name      = aws_lambda_function.this.function_name
-  authorization_type = "AWS_IAM"
-
-  # 必要に応じてCORS設定
-  # cors {
-  #   allow_origins = ["*"] # 呼び出し元に応じて適切に設定
-  #   allow_methods = ["POST", "GET"]
-  # }
+  authorization_type = "NONE"
 }

@@ -86,19 +86,6 @@ resource "aws_iam_policy" "lambda_exec_policy" {
           aws_secretsmanager_secret.this.arn,
           data.aws_secretsmanager_secret_version.mcp_server_example.arn
         ]
-      },
-      {
-        Sid    = "LambdaCommunicate",
-        Action = "lambda:InvokeFunctionUrl",
-        Effect = "Allow",
-        Resource = [
-          jsondecode(data.aws_secretsmanager_secret_version.mcp_server_example.secret_string).FUNCTION_ARN
-        ],
-        Condition = {
-          StringEquals = {
-            "lambda:FunctionUrlAuthType" = "AWS_IAM"
-          }
-        }
       }
     ]
   })
