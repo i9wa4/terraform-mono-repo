@@ -56,10 +56,10 @@ MCP_CONNECTIONS = {
     #         "Authorization": f"Bearer {os.environ.get('DATABASE_SERVER_TOKEN')}"
     #     },
     # },
-    "gitmcp": {
-        "transport": "sse",
-        "url": "https://gitmcp.io/langchain-ai/langchain-mcp-adapters",
-    },
+    # "gitmcp": {
+    #     "transport": "sse",
+    #     "url": "https://gitmcp.io/langchain-ai/langchain-mcp-adapters",
+    # },
     "mcp_server_example": {"transport": "sse", "url": f"{mcp_server_example_url_key}"},
 }
 
@@ -122,7 +122,16 @@ async def process_query(event: Dict[str, Any]) -> Dict[str, Any]:
         }
 
     except Exception as e:
-        return {"statusCode": 500, "body": json.dumps({"error": str(e)})}
+        logger.error(f"Error during query processing: {str(e)}", exc_info=True)
+        return {
+            "statusCode": 500,
+            "body": json.dumps(
+                {
+                    "error": str(e),
+                    "details": "Check Lambda logs for mcp-client for more details.",
+                }
+            ),
+        }
 
     finally:
         await client.close()
