@@ -111,3 +111,11 @@ resource "aws_lambda_function" "this" {
     aws_iam_role_policy_attachment.lambda_exec_policy_attachment
   ]
 }
+
+# --------------------
+# Resources for Lambda URL
+#
+resource "aws_lambda_function_url" "requester_function_url" {
+  function_name      = aws_lambda_function.this.function_name
+  authorization_type = "NONE"
+}
