@@ -137,7 +137,7 @@ resource "aws_lambda_permission" "allow_mcp_client_invoke" {
   statement_id  = "AllowInvocationFromMcpClientOnly"
   action        = "lambda:InvokeFunctionUrl"
   function_name = aws_lambda_function.this.function_name
-  principal     = "iam.amazonaws.com"
+  principal     = data.aws_iam_role.mcp_client_lambda_role.arn
   source_arn    = data.aws_iam_role.mcp_client_lambda_role.arn
 }
 
