@@ -138,7 +138,6 @@ resource "aws_lambda_permission" "allow_mcp_client_invoke" {
   action        = "lambda:InvokeFunctionUrl"
   function_name = aws_lambda_function.this.function_name
   principal     = data.aws_iam_role.mcp_client_lambda_role.arn
-  source_arn    = data.aws_iam_role.mcp_client_lambda_role.arn
 }
 
 resource "aws_lambda_function_url" "this" {
