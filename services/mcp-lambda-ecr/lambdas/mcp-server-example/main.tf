@@ -143,4 +143,7 @@ resource "aws_lambda_permission" "allow_mcp_client_invoke" {
 resource "aws_lambda_function_url" "this" {
   function_name      = aws_lambda_function.this.function_name
   authorization_type = "NONE"
+  depends_on = [
+    aws_lambda_permission.allow_mcp_client_invoke
+  ]
 }
