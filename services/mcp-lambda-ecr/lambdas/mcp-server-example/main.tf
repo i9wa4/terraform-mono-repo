@@ -133,11 +133,14 @@ data "aws_iam_role" "mcp_client_lambda_role" {
   name = "${var.project_name}-${var.environment}-mcp-client-exec-role"
 }
 
+data "aws_caller_identity" "current" {}
+
 resource "aws_lambda_permission" "allow_mcp_client_invoke" {
-  statement_id  = "AllowInvocationFromMcpClientOnly"
-  action        = "lambda:InvokeFunctionUrl"
-  function_name = aws_lambda_function.this.function_name
-  principal     = data.aws_iam_role.mcp_client_lambda_role.arn
+  statement_id   = "AllowInvocationFromMcpClientOnly"
+  action         = "lambda:InvokeFunctionUrl"
+  function_name  = aws_lambda_function.this.function_name
+  principal      = data.aws_iam_role.mcp_client_lambda_role.arn
+  source_account = data.aws_caller_identity.current.account_id
 }
 
 resource "aws_lambda_function_url" "this" {
