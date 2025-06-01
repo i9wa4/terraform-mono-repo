@@ -31,6 +31,10 @@ data "aws_secretsmanager_secret_version" "mcp_server_example" {
   secret_id = "${var.project_name}/${var.environment}/mcp-server-example"
 }
 
+data "aws_secretsmanager_secret_version" "mcp_lambda_ecr" {
+  secret_id = "${var.project_name}/${var.environment}"
+}
+
 resource "aws_secretsmanager_secret" "this" {
   name        = local.secret_name
   description = "Secret for ${local.lambda_function_name}. Repository: ${var.github_repository}."
@@ -84,7 +88,8 @@ resource "aws_iam_policy" "lambda_exec_policy" {
         Effect = "Allow",
         Resource = [
           aws_secretsmanager_secret.this.arn,
-          data.aws_secretsmanager_secret_version.mcp_server_example.arn
+          data.aws_secretsmanager_secret_version.mcp_server_example.arn,
+          data.aws_secretsmanager_secret_version.mcp_lambda_ecr.arn
         ]
       }
     ]
@@ -134,6 +139,7 @@ resource "aws_lambda_function" "this" {
     variables = {
       THIS_SECRET_NAME               = local.secret_name
       MCP_SERVER_EXAMPLE_SECRET_NAME = data.aws_secretsmanager_secret_version.mcp_server_example.secret_id
+      MCP_LAMBDA_ECR_SECRET_NAME     = data.aws_secretsmanager_secret_version.mcp_lambda_ecr.secret_id
     }
   }
 }

@@ -39,6 +39,8 @@ mcp_server_example_url_key = get_secret_value(
     os.environ.get("MCP_SERVER_EXAMPLE_SECRET_NAME"), "FUNCTION_URL"
 )
 
+x_api_key = get_secret_value(os.environ.get("MCP_LAMBDA_ECR_SECRET_NAME"), "X_API_KEY")
+
 MCP_CONNECTIONS = {
     # "math": {
     #     "transport": "sse",
@@ -60,7 +62,11 @@ MCP_CONNECTIONS = {
     #     "transport": "sse",
     #     "url": "https://gitmcp.io/langchain-ai/langchain-mcp-adapters",
     # },
-    "mcp_server_example": {"transport": "sse", "url": f"{mcp_server_example_url_key}"},
+    "mcp_server_example": {
+        "transport": "sse",
+        "url": f"{mcp_server_example_url_key}",
+        "headers": {"X-Api-Key": f"{x_api_key}"},
+    },
 }
 
 
