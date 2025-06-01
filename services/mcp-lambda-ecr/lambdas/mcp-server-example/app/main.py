@@ -1,10 +1,39 @@
 import json
 import logging
+import os
 
+import boto3
 from app.mcp_server import mcp
+from botocore.exceptions import BotoCoreError
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+
+def get_secret_value(
+    secret_name: str, secret_key: str, region_name: str = os.environ.get("AWS_REGION")
+) -> str:
+    """AWS Secrets Managerからシークレット値を取得"""
+    session = boto3.session.Session()
+    client = session.client(service_name="secretsmanager", region_name=region_name)
+    try:
+        response = client.get_secret_value(SecretId=secret_name)
+        secret_payload = response["SecretString"]
+        secret_data = json.loads(secret_payload)
+        if secret_key not in secret_data:
+            # このKeyErrorは呼び出し元でキャッチされるか、Lambda実行を失敗させる
+            raise KeyError(f"Key '{secret_key}' not found in secret '{secret_name}'.")
+        value = secret_data[secret_key]
+        logger.info(
+            f"Successfully retrieved secret '{secret_name}' (key: '{secret_key}')"
+        )
+        return value
+    except (BotoCoreError, json.JSONDecodeError, KeyError, TypeError) as e:
+        logger.error(
+            f"Error processing secret '{secret_name}' (key: '{secret_key}'):"
+            f" {type(e).__name__} - {str(e)}"
+        )
+        raise  # エラーを再raiseし、呼び出し元で処理されるかLambda実行を失敗させる
 
 
 def lambda_handler(event, context):
@@ -18,18 +47,120 @@ def lambda_handler(event, context):
     )
     logger.debug(f"受信イベント: {json.dumps(event)}")
 
+    # --- APIキー取得 ---
+    expected_api_key = None
     try:
-        # API Gateway や他のトリガーはボディを文字列として渡す場合があります。
-        # Content-Type ヘッダーが application/json の場合、API Gateway が
-        # 自動的に辞書にパースすることがあります。
+        # 環境変数名はTerraformで設定するものと合わせる
+        # ご提示の環境変数名と固定キー名を使用
+        api_key_secret_name_from_env = os.environ[
+            "MCP_LAMBDA_ECR_SECRET_NAME"
+        ]  # 未設定ならKeyError
+        api_key_json_key_from_env = "X_API_KEY"  # 固定のJSONキー名
+
+        expected_api_key = get_secret_value(
+            api_key_secret_name_from_env, api_key_json_key_from_env
+        )
+        # 取得成功のログは get_secret_value 内で出力されるためここでは省略可
+
+    except KeyError as e:
+        # 環境変数が設定されていない場合
+        logger.error(
+            "CRITICAL: Environment variable for API key secret name not set"
+            f" ('{str(e)}'). Denying request."
+        )
+        req_id_for_error_response = None
+        body_for_id_parsing_error = event.get("body", "{}")
+        if isinstance(body_for_id_parsing_error, str):
+            body_for_id_parsing_error = json.loads(body_for_id_parsing_error)
+        req_id_for_error_response = body_for_id_parsing_error.get("id")
+        return {
+            "statusCode": 500,
+            "headers": {"Content-Type": "application/json"},
+            "body": json.dumps(
+                {
+                    "jsonrpc": "2.0",
+                    "error": {
+                        "code": -32001,
+                        "message": (
+                            "Server configuration error: API Key secret name not"
+                            f" configured ({str(e)})"
+                        ),
+                    },
+                    "id": req_id_for_error_response,
+                }
+            ),
+        }
+    except Exception as e:
+        # get_secret_value内でキャッチされなかった予期せぬエラー (例: IAM権限不足、シークレット存在しない等)
+        logger.error(
+            f"CRITICAL: Failed to load expected API key due to: {type(e).__name__} -"
+            f" {str(e)}. Denying request."
+        )
+        req_id_for_error_response = None
+        body_for_id_parsing_error = event.get("body", "{}")
+        if isinstance(body_for_id_parsing_error, str):
+            body_for_id_parsing_error = json.loads(body_for_id_parsing_error)
+        req_id_for_error_response = body_for_id_parsing_error.get("id")
+        return {
+            "statusCode": 500,
+            "headers": {"Content-Type": "application/json"},
+            "body": json.dumps(
+                {
+                    "jsonrpc": "2.0",
+                    "error": {
+                        "code": -32001,
+                        "message": (
+                            "Server configuration error: Could not retrieve API Key"
+                            f" ({type(e).__name__})"
+                        ),
+                    },
+                    "id": req_id_for_error_response,
+                }
+            ),
+        }
+
+    # --- APIキー検証 ---
+    request_headers = event.get("headers", {})
+    received_api_key = None
+    # クライアントが送信するヘッダー名を小文字で定義 (例: "x-api-key")
+    client_api_key_header_name_to_check_lower = "x-api-key"
+
+    for header_key, header_value in request_headers.items():
+        if header_key.lower() == client_api_key_header_name_to_check_lower:
+            received_api_key = header_value
+            break
+
+    if not received_api_key or received_api_key != expected_api_key:
+        logger.warning(
+            f"Forbidden: Missing or invalid API key. Received key: '{received_api_key}'"
+        )
+        req_id_for_error_response = None
+        body_for_id_parsing_error = event.get("body", "{}")
+        if isinstance(body_for_id_parsing_error, str):
+            body_for_id_parsing_error = json.loads(body_for_id_parsing_error)
+        req_id_for_error_response = body_for_id_parsing_error.get("id")
+        return {
+            "statusCode": 403,
+            "headers": {"Content-Type": "application/json"},
+            "body": json.dumps(
+                {
+                    "jsonrpc": "2.0",
+                    "error": {"code": -32000, "message": "Forbidden - Invalid API Key"},
+                    "id": req_id_for_error_response,
+                }
+            ),
+        }
+    logger.info("API key validated successfully.")
+    # --- APIキー取得と検証ここまで ---
+
+    # --- リクエストボディの処理 (ここから下は変更なし) ---
+    try:
         if isinstance(event.get("body"), str):
             request_body_str = event["body"]
-        elif isinstance(
-            event.get("body"), dict
-        ):  # API Gateway によって既にパースされている場合
+        elif isinstance(event.get("body"), dict):
             request_body_str = json.dumps(event["body"])
-        else:  # 他のイベント構造やLambdaの直接呼び出しの場合のフォールバック
-            request_body_str = json.dumps(event)  # イベント全体をリクエストとして扱う
+        else:
+            request_body_str = json.dumps(event)
 
         logger.info(f"MCPリクエストのパース試行: {request_body_str}")
         request_obj = json.loads(request_body_str)
@@ -47,7 +178,7 @@ def lambda_handler(event, context):
                 }
             ),
         }
-    except TypeError as e:  # event["body"] が None や文字列/辞書でない場合を処理
+    except TypeError as e:
         logger.error(
             f"TypeError: 無効なリクエスト入力: {e}. イベントボディ: {event.get('body')}"
         )
@@ -91,9 +222,6 @@ def lambda_handler(event, context):
         logger.info(
             f"MCPメソッド '{method}' をパラメータ {json.dumps(params)} で処理中"
         )
-        # FastMCP インスタンスに登録されたツールとリソースへのアクセス
-        # 正確な構造 (mcp.router.tools, mcp.router.resources) は FastMCP の設計に依存します。
-        # これらは一般的な規約です。
         if (
             hasattr(mcp, "router")
             and hasattr(mcp.router, "tools")
@@ -112,8 +240,6 @@ def lambda_handler(event, context):
             resource_definition = mcp.router.resources[method]
             actual_resource_func = resource_definition.func
             logger.info(f"リソース '{method}' を呼び出し中。")
-            # リソースはツールと同じようにパラメータを期待するとは限りません。
-            # FastMCP がリソースのパラメータを異なる方法で処理する場合は調整してください。
             result = actual_resource_func(**params)
             response_data = {"jsonrpc": "2.0", "result": result, "id": request_id}
         else:
@@ -128,10 +254,6 @@ def lambda_handler(event, context):
                 },
                 "id": request_id,
             }
-            # "メソッドが見つかりません" の場合、JSON-RPC 仕様では通常 HTTP 200 を返しますが、
-            # JSON ボディにエラーを含めます。一部のゲートウェイは 404 を好むかもしれません。
-            # この特定のエラーについては、一部の JSON-RPC サーバー実装に従い 200 を維持します。
-            # lambda_status_code = 404 # または 200 を維持
     except Exception as e:
         logger.error(
             f"メソッド '{method}' の実行中にエラーが発生しました: {e}", exc_info=True
@@ -140,11 +262,11 @@ def lambda_handler(event, context):
             "jsonrpc": "2.0",
             "error": {
                 "code": -32000,
-                "message": f"メソッド実行中のサーバーエラー: {e}",
+                "message": f"メソッド実行中のサーバーエラー: {str(e)}",
             },
             "id": request_id,
         }
-        lambda_status_code = 500  # 内部サーバーエラー
+        lambda_status_code = 500
 
     response_body_str = json.dumps(response_data, ensure_ascii=False)
     logger.info(

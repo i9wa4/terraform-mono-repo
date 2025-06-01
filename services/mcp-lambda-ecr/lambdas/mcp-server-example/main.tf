@@ -32,6 +32,10 @@ resource "aws_secretsmanager_secret" "this" {
   description = "Secret for ${local.lambda_function_name}. Repository: ${var.github_repository}. WARNING: Managed by Terraform."
 }
 
+data "aws_secretsmanager_secret_version" "mcp_lambda_ecr" {
+  secret_id = "${var.project_name}/${var.environment}"
+}
+
 resource "aws_secretsmanager_secret_version" "this" {
   secret_id = aws_secretsmanager_secret.this.id
   secret_string = jsonencode({
@@ -81,6 +85,14 @@ resource "aws_iam_policy" "lambda_exec_policy" {
         Resource = [
           "${aws_cloudwatch_log_group.lambda_log_group.arn}:*"
         ]
+      },
+      {
+        Sid    = "SecretsManagerRead",
+        Action = "secretsmanager:GetSecretValue",
+        Effect = "Allow",
+        Resource = [
+          data.aws_secretsmanager_secret_version.mcp_lambda_ecr.arn
+        ]
       }
     ]
   })
@@ -124,6 +136,12 @@ resource "aws_lambda_function" "this" {
     aws_cloudwatch_log_group.lambda_log_group,
     aws_iam_role_policy_attachment.lambda_exec_policy_attachment
   ]
+
+  environment {
+    variables = {
+      MCP_LAMBDA_ECR_SECRET_NAME = data.aws_secretsmanager_secret_version.mcp_lambda_ecr.secret_id
+    }
+  }
 }
 
 # --------------------
@@ -133,14 +151,17 @@ data "aws_iam_role" "mcp_client_lambda_role" {
   name = "${var.project_name}-${var.environment}-mcp-client-exec-role"
 }
 
-data "aws_caller_identity" "current" {}
+# data "aws_caller_identity" "current" {}
 
 resource "aws_lambda_permission" "allow_mcp_client_invoke" {
-  statement_id   = "AllowInvocationFromMcpClientOnly"
-  action         = "lambda:InvokeFunctionUrl"
-  function_name  = aws_lambda_function.this.function_name
-  principal      = data.aws_iam_role.mcp_client_lambda_role.arn
-  source_account = data.aws_caller_identity.current.account_id
+  statement_id  = "AllowInvocationFromMcpClientOnly"
+  action        = "lambda:InvokeFunctionUrl"
+  function_name = aws_lambda_function.this.function_name
+  principal = [
+    "*"
+  ]
+  # principal      = data.aws_iam_role.mcp_client_lambda_role.arn
+  # source_account = data.aws_caller_identity.current.account_id
 }
 
 resource "aws_lambda_function_url" "this" {
