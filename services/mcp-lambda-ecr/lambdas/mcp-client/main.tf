@@ -38,6 +38,17 @@ data "aws_secretsmanager_secret_version" "mcp_lambda_ecr" {
 resource "aws_secretsmanager_secret" "this" {
   name        = local.secret_name
   description = "Secret for ${local.lambda_function_name}. Repository: ${var.github_repository}."
+
+  secret_string = jsonencode({
+    GEMINI_API_KEY = "dummy"
+    X_API_KEY      = "dummy"
+  })
+
+  lifecycle {
+    ignore_changes = [
+      secret_string,
+    ]
+  }
 }
 
 # --------------------

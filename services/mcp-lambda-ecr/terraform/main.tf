@@ -60,7 +60,7 @@ resource "aws_ecr_repository" "app_ecr_repos" {
 
 resource "aws_secretsmanager_secret" "this" {
   name        = "${var.project_name}/${var.environment}/common"
-  description = "Secret for mcp-lambda-ecr. Repository: ${var.github_repository}."
+  description = "Secret for ${var.project_name}. Repository: ${var.github_repository}."
 }
 
 resource "aws_secretsmanager_secret_version" "this" {
