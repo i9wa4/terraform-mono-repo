@@ -1,9 +1,13 @@
-import asyncio
 import json
 import logging
-from fastapi import Depends, FastAPI, HTTPException, Request, status
-from fastapi.security import APIKeyHeader
+
+from fastapi import Depends
+from fastapi import FastAPI
+from fastapi import HTTPException
+from fastapi import Request
+from fastapi import status
 from fastapi.responses import StreamingResponse
+from fastapi.security import APIKeyHeader
 
 logger = logging.getLogger(__name__)
 
@@ -39,18 +43,19 @@ def create_app(auth_api_key: str | None) -> FastAPI:
         if request.method == "GET":
 
             async def tool_list_generator():
-                # Messageクラスの代わりにPython標準のdict（辞書）を使用
+                # Messageクラスの代わりにdictを使用
                 list_tools_response = {
                     "id": "0",
                     "type": "response",
                     "payload": {"result": tool_definitions},
                 }
-                # .model_dump_json()の代わりに標準ライブラリのjson.dumpsを使用
+                # model_dump_json()の代わりにjson.dumpsを使用
                 yield f"data: {json.dumps(list_tools_response)}\n\n"
 
-                while True:
-                    await asyncio.sleep(30)
-                    yield ": keep-alive\n\n"
+                # --- 修正箇所：不要な無限ループとsleepを削除 ---
+                # while True:
+                #     await asyncio.sleep(30)
+                #     yield ": keep-alive\n\n"
 
             return StreamingResponse(
                 tool_list_generator(), media_type="text/event-stream"

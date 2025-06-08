@@ -5,6 +5,7 @@ import boto3
 from botocore.exceptions import ClientError
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 def get_secret_value(secret_name: str, secret_key: str) -> str | None:

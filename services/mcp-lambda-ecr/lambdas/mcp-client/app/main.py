@@ -8,8 +8,9 @@ from app.aws_utils import get_secret_value
 from app.mcp_client import GeminiMCPClient
 
 # Configure logging
-logger = logging.getLogger()
+logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
 
 # --- Environment Variables ---
 MCP_SERVER_EXAMPLE_SECRET_NAME = os.environ.get("MCP_SERVER_EXAMPLE_SECRET_NAME")
