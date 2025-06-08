@@ -1,7 +1,5 @@
-import importlib
 import json
 import logging
-import os
 
 from fastapi import Depends
 from fastapi import FastAPI
@@ -12,50 +10,123 @@ from fastapi.responses import JSONResponse
 from fastapi.responses import StreamingResponse
 from fastapi.security import APIKeyHeader
 
+# mcp-databricks-serverから、ツールとして公開されている個々の関数を直接インポートします
+try:
+    from mcp_databricks_server.main import describe_table
+    from mcp_databricks_server.main import execute_sql_query
+    from mcp_databricks_server.main import list_schemas
+    from mcp_databricks_server.main import list_tables
+
+    logging.info("Successfully imported tool functions from mcp_databricks_server.main")
+except ImportError as e:
+    logging.error(f"Could not import tool functions: {e}. Check PYTHONPATH.")
+    # エラー時にはNoneを設定し、起動時に検知できるようにします
+    execute_sql_query = list_schemas = list_tables = describe_table = None
+
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
 
-
-def get_target_mcp_object():
-    """環境変数に基づいて、ラップ対象のMCPオブジェクトを動的にインポートする"""
-    module_path = os.environ.get("MCP_MODULE_PATH")  # 例: "mcp_databricks_server.main"
-    object_name = os.environ.get("MCP_OBJECT_NAME")  # 例: "mcp"
-
-    if not module_path or not object_name:
-        raise ValueError(
-            "MCP_MODULE_PATH and MCP_OBJECT_NAME environment variables must be set."
-        )
-
-    try:
-        module = importlib.import_module(module_path)
-        mcp_object = getattr(module, object_name)
-        logger.info(f"Successfully imported '{object_name}' from '{module_path}'.")
-        return mcp_object
-    except (ImportError, AttributeError) as e:
-        logger.error(f"Failed to dynamically import MCP object: {e}")
-        raise
+# クライアント(Agent)に提示するツール定義リストを、ラッパー側で明示的に記述します
+TOOL_DEFINITIONS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "execute_sql_query",
+            "description": "Execute a SQL query on Databricks and return the results.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "sql": {
+                        "type": "string",
+                        "description": "The SQL query to execute.",
+                    }
+                },
+                "required": ["sql"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_schemas",
+            "description": (
+                "List all available schemas in a specific catalog on Databricks."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "catalog": {
+                        "type": "string",
+                        "description": "The name of the catalog.",
+                    }
+                },
+                "required": ["catalog"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_tables",
+            "description": "List all tables in a specific schema on Databricks.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "schema": {
+                        "type": "string",
+                        "description": (
+                            "The name of the schema (e.g., 'catalog_name.schema_name')."
+                        ),
+                    }
+                },
+                "required": ["schema"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "describe_table",
+            "description": "Describe a table's schema on Databricks.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "table_name": {
+                        "type": "string",
+                        "description": (
+                            "The full name of the table (e.g., 'catalog.schema.table')."
+                        ),
+                    }
+                },
+                "required": ["table_name"],
+            },
+        },
+    },
+]
 
 
 def create_app(auth_api_key: str | None) -> FastAPI:
-    """汎用的なFastAPIラッパーアプリケーションを生成する"""
+    """FastAPIラッパーアプリケーションを生成するファクトリ関数"""
     app = FastAPI(
-        title="Generic MCP Server Wrapper",
-        description="A generic wrapper to host Python-based MCP servers on AWS Lambda.",
-        version="2.0.0",
+        title="Databricks MCP Server Wrapper",
+        description="A wrapper for mcp-databricks-server running on AWS Lambda.",
+        version="1.0.0",
     )
 
-    # ラップ対象のMCPオブジェクトを動的に取得
-    target_mcp_object = get_target_mcp_object()
+    if not all([execute_sql_query, list_schemas, list_tables, describe_table]):
+        raise RuntimeError(
+            "One or more tool functions could not be imported from"
+            " mcp_databricks_server."
+        )
 
-    # MCPオブジェクトからツール定義とディスパッチテーブルを動的に生成
-    tool_definitions = [tool.schema for tool in target_mcp_object.tools]
-    dispatch_table = {tool.name: tool.func for tool in target_mcp_object.tools}
-    logger.info(
-        f"Loaded {len(tool_definitions)} tools:"
-        f" {[name for name in dispatch_table.keys()]}"
-    )
+    # ツール名とインポートした関数を紐付けるディスパッチテーブル（呼び出し辞書）
+    dispatch_table = {
+        "execute_sql_query": execute_sql_query,
+        "list_schemas": list_schemas,
+        "list_tables": list_tables,
+        "describe_table": describe_table,
+    }
 
-    # APIキー認証 (変更なし)
+    # APIキー認証の仕組み
     api_key_header = APIKeyHeader(name="X-Api-Key", auto_error=False)
 
     async def api_key_auth(api_key: str = Depends(api_key_header)):
@@ -65,16 +136,17 @@ def create_app(auth_api_key: str | None) -> FastAPI:
             )
         return api_key
 
+    # MCPのエンドポイント定義
     @app.route("/mcp", methods=["GET", "POST"])
     async def mcp_endpoint(request: Request, _=Depends(api_key_auth)):
-        # GETリクエストの処理
+        # GETリクエスト：ツール一覧を返す
         if request.method == "GET":
 
             async def tool_list_generator():
                 response = {
                     "jsonrpc": "2.0",
                     "id": "0",
-                    "result": {"tools": tool_definitions},
+                    "result": {"tools": TOOL_DEFINITIONS},
                 }
                 yield f"data: {json.dumps(response)}\n\n"
 
@@ -82,7 +154,7 @@ def create_app(auth_api_key: str | None) -> FastAPI:
                 tool_list_generator(), media_type="text/event-stream"
             )
 
-        # POSTリクエストの処理
+        # POSTリクエスト：ツールを実行する
         if request.method == "POST":
             body = await request.json()
             tool_name = body.get("method")
