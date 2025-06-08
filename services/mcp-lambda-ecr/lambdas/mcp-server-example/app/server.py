@@ -142,17 +142,17 @@ def create_app(auth_api_key: str | None) -> FastAPI:
         # GETリクエスト：ツール一覧を返す
         if request.method == "GET":
 
-            async def tool_list_generator():
-                response = {
-                    "jsonrpc": "2.0",
-                    "id": "0",
-                    "result": {"tools": TOOL_DEFINITIONS},
-                }
-                yield f"data: {json.dumps(response)}\n\n"
+            # --- 変更前 (コメントアウト) ---
+            # async def tool_list_generator():
+            #     response = {"jsonrpc": "2.0", "id": "0", "result": {"tools": TOOL_DEFINITIONS}}
+            #     yield f"data: {json.dumps(response)}\n\n"
+            # return StreamingResponse(tool_list_generator(), media_type="text/event-stream")
 
-            return StreamingResponse(
-                tool_list_generator(), media_type="text/event-stream"
-            )
+            # --- ▼▼▼ デバッグ用の変更後 ▼▼▼ ---
+            # StreamingResponseをやめ、通常のJSONResponseで即座に応答を返す
+            logger.info("Processing GET request with JSONResponse for debugging.")
+            response_data = {"jsonrpc": "2.0", "id": "0", "result": {"tools": TOOL_DEFINITIONS}}
+            return JSONResponse(content=response_data)
 
         # POSTリクエスト：ツールを実行する
         if request.method == "POST":
