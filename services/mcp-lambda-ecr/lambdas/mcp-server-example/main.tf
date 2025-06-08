@@ -14,6 +14,7 @@ locals {
   app_name             = basename(abspath(path.module))
   lambda_function_name = "${var.project_name}-${var.environment}-${local.app_name}"
   secret_name          = "${var.project_name}/${var.environment}/${local.app_name}"
+  config_secret_name   = "${var.project_name}/${var.environment}/${local.app_name}/config"
 }
 
 data "aws_caller_identity" "current" {}
@@ -39,11 +40,34 @@ resource "aws_secretsmanager_secret" "this" {
 resource "aws_secretsmanager_secret_version" "this" {
   secret_id = aws_secretsmanager_secret.this.id
   secret_string = jsonencode({
-    FUNCTION_URL    = aws_lambda_function_url.this.function_url
-    FUNCTION_ARN    = aws_lambda_function.this.arn
-    MCP_MODULE_PATH = "mcp_databricks_server.main"
-    MCP_OBJECT_NAME = "mcp"
+    FUNCTION_URL = aws_lambda_function_url.this.function_url
+    FUNCTION_ARN = aws_lambda_function.this.arn
   })
+}
+
+resource "aws_secretsmanager_secret" "config" {
+  name        = local.config_secret_name
+  description = "Secret for ${var.project_name}. Repository: ${var.github_repository}."
+}
+
+resource "aws_secretsmanager_secret_version" "config" {
+  secret_id = aws_secretsmanager_secret.config.id
+  secret_string = jsonencode({
+    MCP_MODULE_PATH             = "mcp_databricks_server.main"
+    MCP_OBJECT_NAME             = "mcp"
+    DATABRICKS_HOST             = "your-databricks-instance.cloud.databricks.com"
+    DATABRICKS_TOKEN            = "your-databricks-access-token"
+    DATABRICKS_SQL_WAREHOUSE_ID = "your-sql-warehouse-id"
+    DATABRICKS_CLIENT_ID        = "your-client-id"
+    DATABRICKS_CLIENT_SECRET    = "your-client-secret"
+    DATABRICKS_AUTH_TYPE        = "oauth"
+  })
+
+  lifecycle {
+    ignore_changes = [
+      secret_string,
+    ]
+  }
 }
 
 # --------------------
@@ -93,7 +117,8 @@ resource "aws_iam_policy" "lambda_exec_policy" {
         Action = "secretsmanager:GetSecretValue",
         Effect = "Allow",
         Resource = [
-          data.aws_secretsmanager_secret_version.common.arn
+          data.aws_secretsmanager_secret_version.common.arn,
+          aws_secretsmanager_secret.config.arn
         ]
       }
     ]

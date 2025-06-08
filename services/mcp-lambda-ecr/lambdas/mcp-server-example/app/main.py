@@ -47,16 +47,27 @@ try:
     logger.info("Application initialized successfully.")
 
 except Exception as e:
-    logger.critical(f"Failed to initialize the application: {e}", exc_info=True)
+    initialization_error = e  # 例外を別の変数に保存
+    logger.critical(
+        f"Failed to initialize the application: {initialization_error}", exc_info=True
+    )
     from fastapi import FastAPI
     from fastapi import status
 
-    app = FastAPI()
+    # エラー報告専用のFastAPIアプリを作成
+    error_app = FastAPI()
 
-    @app.get("/{path:path}", status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
+    @error_app.get("/{path:path}", status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
     def critical_error_handler(path: str):
-        return {"detail": f"Service unavailable due to initialization failure: {e}"}
+        # 保存した変数を参照する
+        return {
+            "detail": (
+                "Service unavailable due to initialization failure:"
+                f" {initialization_error}"
+            )
+        }
 
+    app = error_app  # グローバルのapp変数にエラー報告用アプリをセット
 
 # --- Lambda Handler ---
 lambda_handler = Mangum(app, lifespan="off")
