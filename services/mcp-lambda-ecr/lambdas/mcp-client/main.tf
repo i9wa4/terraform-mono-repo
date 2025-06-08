@@ -81,7 +81,6 @@ resource "aws_iam_policy" "lambda_exec_policy" {
         Action = "secretsmanager:GetSecretValue",
         Effect = "Allow",
         Resource = [
-          aws_secretsmanager_secret.this.arn,
           data.aws_secretsmanager_secret_version.common.arn,
           data.aws_secretsmanager_secret_version.mcp_server_example.arn
         ]
