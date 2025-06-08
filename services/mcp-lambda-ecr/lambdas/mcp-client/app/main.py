@@ -2,7 +2,8 @@ import asyncio
 import json
 import logging
 import os
-from typing import Any, Dict
+from typing import Any
+from typing import Dict
 
 import boto3
 from app.mcp_client import GeminiMCPClient
@@ -34,6 +35,7 @@ def get_secret_value(
         )
         raise
 
+
 async def process_query(event: Dict[str, Any]) -> Dict[str, Any]:
     """クエリを処理してレスポンスを返す"""
 
@@ -49,7 +51,8 @@ async def process_query(event: Dict[str, Any]) -> Dict[str, Any]:
     mcp_connections = {
         "mcp_server_example": {
             "transport": "sse",
-            "url": mcp_server_example_url_key,
+            # ===== ここを修正しました！=====
+            "url": f"{mcp_server_example_url_key.rstrip('/')}/mcp",
             "headers": {"X-Api-Key": x_api_key},
         },
     }
@@ -63,7 +66,7 @@ async def process_query(event: Dict[str, Any]) -> Dict[str, Any]:
     if not message:
         return {"statusCode": 400, "body": json.dumps({"error": "Message is required"})}
 
-    client = None # finallyブロックのために定義
+    client = None  # finallyブロックのために定義
     try:
         client = GeminiMCPClient(
             gemini_api_key=gemini_api_key,
@@ -128,23 +131,18 @@ async def process_query(event: Dict[str, Any]) -> Dict[str, Any]:
 def lambda_handler(event, context):
     """Lambda関数のエントリーポイント"""
 
-    # ===== ここを修正しました =====
     http_method = event.get("httpMethod", "")
 
-    if http_method == "POST":
+    if http_method in ("POST", "GET"):
         return asyncio.run(process_query(event))
-    elif http_method == "GET":
-        # ヘルスチェック
-        return {
-            "statusCode": 200,
-            "body": json.dumps({
-                "status": "healthy"
-            }),
-        }
     else:
-        # POST/GET以外、またはhttpMethodキーが存在しない場合
-        # (直接のテスト呼び出しなど)
-        if 'body' in event:
+        # httpMethodキーが存在しない場合 (テスト等)
+        if "body" in event:
             return asyncio.run(process_query(event))
         else:
-            return {"statusCode": 405, "body": json.dumps({"error": "Method not allowed or invalid event structure"})}
+            return {
+                "statusCode": 405,
+                "body": json.dumps(
+                    {"error": "Method not allowed or invalid event structure"}
+                ),
+            }
