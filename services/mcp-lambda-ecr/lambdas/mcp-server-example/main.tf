@@ -39,8 +39,10 @@ resource "aws_secretsmanager_secret" "this" {
 resource "aws_secretsmanager_secret_version" "this" {
   secret_id = aws_secretsmanager_secret.this.id
   secret_string = jsonencode({
-    FUNCTION_URL = aws_lambda_function_url.this.function_url
-    FUNCTION_ARN = aws_lambda_function.this.arn
+    FUNCTION_URL    = aws_lambda_function_url.this.function_url
+    FUNCTION_ARN    = aws_lambda_function.this.arn
+    MCP_MODULE_PATH = "mcp_databricks_server.main"
+    MCP_OBJECT_NAME = "mcp"
   })
 }
 
@@ -154,11 +156,11 @@ data "aws_iam_role" "mcp_client_lambda_role" {
 # data "aws_caller_identity" "current" {}
 
 resource "aws_lambda_permission" "allow_mcp_client_invoke" {
-  statement_id  = "AllowInvocationFromMcpClientOnly"
-  action        = "lambda:InvokeFunctionUrl"
-  function_name = aws_lambda_function.this.function_name
-function_url_auth_type = "NONE"
-  principal     = "*"
+  statement_id           = "AllowInvocationFromMcpClientOnly"
+  action                 = "lambda:InvokeFunctionUrl"
+  function_name          = aws_lambda_function.this.function_name
+  function_url_auth_type = "NONE"
+  principal              = "*"
   # principal      = data.aws_iam_role.mcp_client_lambda_role.arn
   # source_account = data.aws_caller_identity.current.account_id
 }

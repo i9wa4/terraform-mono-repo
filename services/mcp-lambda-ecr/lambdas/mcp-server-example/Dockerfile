@@ -25,10 +25,17 @@ RUN --mount=from=uv,source=/uv,target=/bin/uv \
     uv export --frozen --no-emit-workspace --no-dev --no-editable -o requirements.txt && \
     uv pip install -r requirements.txt --target "${LAMBDA_TASK_ROOT}"
 
+FROM alpine/git:2.49.0 as cloner
+WORKDIR /src
+RUN git clone https://github.com/i9wa4/mcp-databricks-server.git
+
 FROM public.ecr.aws/lambda/python:3.13
 
 # Copy the runtime dependencies from the builder stage.
 COPY --from=builder ${LAMBDA_TASK_ROOT} ${LAMBDA_TASK_ROOT}
+
+COPY --from=cloner /src/mcp-databricks-server ${LAMBDA_TASK_ROOT}/mcp_databricks_server
+ENV PYTHONPATH "${LAMBDA_TASK_ROOT}:${LAMBDA_TASK_ROOT}/mcp_databricks_server"
 
 # Copy the application code.
 COPY ./app ${LAMBDA_TASK_ROOT}/app

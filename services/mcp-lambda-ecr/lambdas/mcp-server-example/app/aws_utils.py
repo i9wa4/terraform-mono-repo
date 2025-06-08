@@ -1,9 +1,11 @@
 import json
 import logging
+
 import boto3
 from botocore.exceptions import ClientError
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 def get_secret_value(secret_name: str, secret_key: str) -> str | None:
@@ -48,5 +50,8 @@ def get_secret_value(secret_name: str, secret_key: str) -> str | None:
     except json.JSONDecodeError:
         # シークレットが単一の値（JSONではない）の場合
         if secret_key:
-             logger.warning(f"Secret '{secret_name}' is not a JSON object, but a key '{secret_key}' was requested. Returning the full secret.")
+            logger.warning(
+                f"Secret '{secret_name}' is not a JSON object, but a key '{secret_key}'"
+                " was requested. Returning the full secret."
+            )
         return secret
