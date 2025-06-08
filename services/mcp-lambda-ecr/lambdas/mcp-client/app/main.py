@@ -4,6 +4,7 @@ import logging
 import os
 
 from app.aws_utils import get_secret_value
+# このファイルは mcp-client のため、mcp_client の import が必要です
 from app.mcp_client import GeminiMCPClient
 
 # Configure logging
@@ -11,14 +12,12 @@ logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 # --- Environment Variables ---
-# These should be configured in your Lambda environment settings
 MCP_SERVER_EXAMPLE_SECRET_NAME = os.environ.get("MCP_SERVER_EXAMPLE_SECRET_NAME")
 COMMON_SECRET_NAME = os.environ.get("COMMON_SECRET_NAME")
 
 # --- Initialize Client at Cold Start ---
 client = None
 try:
-    # Retrieve secrets using the helper function
     function_url = get_secret_value(MCP_SERVER_EXAMPLE_SECRET_NAME, "FUNCTION_URL")
     gemini_api_key = get_secret_value(COMMON_SECRET_NAME, "GEMINI_API_KEY")
     x_api_key = get_secret_value(COMMON_SECRET_NAME, "X_API_KEY")
@@ -26,13 +25,18 @@ try:
     if not all([function_url, gemini_api_key, x_api_key]):
         raise ValueError("One or more required secrets could not be retrieved.")
 
-    # Initialize the GeminiMCPClient with the retrieved secrets
+    # --- 修正箇所：取得したURLの末尾に /mcp を追加 ---
+    if not function_url.endswith("/"):
+        function_url += "/"
+    mcp_endpoint_url = function_url + "mcp"
+    logger.info(f"Connecting to MCP server at: {mcp_endpoint_url}")
+
     client = GeminiMCPClient(
         gemini_api_key=gemini_api_key,
         mcp_connections={
             "mcp_server_example": {
                 "transport": "sse",
-                "url": function_url,
+                "url": mcp_endpoint_url,  # 修正したURLを使用
                 "headers": {"X-Api-Key": x_api_key},
             }
         },
@@ -46,7 +50,6 @@ except Exception as e:
 
 
 async def process_query(query: str):
-    """Initializes client if needed and processes the user query."""
     if not client:
         raise RuntimeError(
             "Client is not initialized. Check cold start logs for errors."
@@ -71,9 +74,7 @@ def lambda_handler(event, context):
     logger.info(f"Received event: {json.dumps(event)}")
 
     try:
-        # Assuming the query is in the 'body' of a JSON payload
         body = json.loads(event.get("body", "{}"))
-        # "query" の代わりに "message" キーから値を取得するように修正
         query = body.get("message")
 
         if not query:
