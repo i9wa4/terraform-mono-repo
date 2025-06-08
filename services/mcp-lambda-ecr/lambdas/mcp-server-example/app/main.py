@@ -45,4 +45,5 @@ except Exception as e:
 
 # --- Lambda Handler ---
 # MangumがLambdaイベントをFastAPIアプリに中継する
-handler = Mangum(app, lifespan="off")
+# 変数名を 'handler' から 'lambda_handler' に変更
+lambda_handler = Mangum(app, lifespan="off")
