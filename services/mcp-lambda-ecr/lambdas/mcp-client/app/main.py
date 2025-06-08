@@ -1,148 +1,92 @@
-import asyncio
+import os
 import json
 import logging
-import os
-from typing import Any
-from typing import Dict
-
-import boto3
 from app.mcp_client import GeminiMCPClient
-from botocore.exceptions import BotoCoreError
+from app.aws_utils import get_secret_value
 
-# ロガー設定
-logger = logging.getLogger(__name__)
+# Configure logging
+logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+# --- Environment Variables ---
+# These should be configured in your Lambda environment settings
+MCP_SERVER_EXAMPLE_SECRET_NAME = os.environ.get("MCP_SERVER_EXAMPLE_SECRET_NAME")
+COMMON_SECRET_NAME = os.environ.get("COMMON_SECRET_NAME")
 
-def get_secret_value(
-    secret_name: str, secret_key: str, region_name: str = os.environ.get("AWS_REGION")
-) -> str:
-    """AWS Secrets Managerからシークレット値を取得"""
-    session = boto3.session.Session()
-    client = session.client(service_name="secretsmanager", region_name=region_name)
-    try:
-        response = client.get_secret_value(SecretId=secret_name)
-        secret_payload = response["SecretString"]
-        secret = json.loads(secret_payload)
-        logger.info(
-            f"Successfully retrieved secret '{secret_name}' (key: '{secret_key}')"
-        )
-        return secret[secret_key]
-    except (BotoCoreError, json.JSONDecodeError, KeyError, TypeError) as e:
-        logger.error(
-            f"Error processing secret '{secret_name}' (key: '{secret_key}'):"
-            f" {type(e).__name__} - {str(e)}"
-        )
-        raise
-
-
-async def process_query(event: Dict[str, Any]) -> Dict[str, Any]:
-    """クエリを処理してレスポンスを返す"""
-
-    # ===== 初期化処理 =====
-    mcp_server_example_url_key = get_secret_value(
-        os.environ.get("MCP_SERVER_EXAMPLE_SECRET_NAME"), "FUNCTION_URL"
+# --- Initialize Client at Cold Start ---
+client = None
+try:
+    # Retrieve secrets using the helper function
+    function_url = get_secret_value(
+        MCP_SERVER_EXAMPLE_SECRET_NAME, "FUNCTION_URL"
     )
     gemini_api_key = get_secret_value(
-        os.environ.get("COMMON_SECRET_NAME"), "GEMINI_API_KEY"
+        COMMON_SECRET_NAME, "GEMINI_API_KEY"
     )
-    x_api_key = get_secret_value(os.environ.get("COMMON_SECRET_NAME"), "X_API_KEY")
+    x_api_key = get_secret_value(COMMON_SECRET_NAME, "X_API_KEY")
 
-    mcp_connections = {
-        "mcp_server_example": {
-            "transport": "sse",
-            # ===== ここを修正しました！=====
-            "url": f"{mcp_server_example_url_key.rstrip('/')}/mcp",
-            "headers": {"X-Api-Key": x_api_key},
+    if not all([function_url, gemini_api_key, x_api_key]):
+        raise ValueError("One or more required secrets could not be retrieved.")
+
+    # Initialize the GeminiMCPClient with the retrieved secrets
+    client = GeminiMCPClient(
+        gemini_api_key=gemini_api_key,
+        mcp_connections={
+            "mcp_server_example": {
+                "transport": "sse",
+                "url": function_url,
+                "headers": {"X-Api-Key": x_api_key},
+            }
         },
-    }
-    # ======================
+    )
+    logger.info("Successfully initialized GeminiMCPClient.")
 
-    # リクエストボディからメッセージを取得
-    body = json.loads(event.get("body", "{}"))
-    message = body.get("message", "")
-    logger.info(f"Received message: {message}")
+except Exception as e:
+    logger.error(f"Failed to initialize GeminiMCPClient at cold start: {e}", exc_info=True)
 
-    if not message:
-        return {"statusCode": 400, "body": json.dumps({"error": "Message is required"})}
 
-    client = None  # finallyブロックのために定義
+async def process_query(query: str):
+    """Initializes client if needed and processes the user query."""
+    if not client:
+        raise RuntimeError("Client is not initialized. Check cold start logs for errors.")
+    
+    logger.info("Initializing client for the request...")
+    await client.initialize()
+    
+    logger.info(f"Processing query: {query}")
+    response_chunks = []
+    async for chunk in client.astream(query):
+        response_chunks.append(chunk)
+        
+    logger.info("Closing client resources.")
+    await client.close()
+    
+    return "".join(map(str, response_chunks))
+
+
+def handler(event, context):
+    """AWS Lambda handler function."""
+    logger.info(f"Received event: {json.dumps(event)}")
+    
     try:
-        client = GeminiMCPClient(
-            gemini_api_key=gemini_api_key,
-            mcp_connections=mcp_connections,
-        )
-        logger.info(
-            f"Initialized GeminiMCPClient with connections: {mcp_connections.keys()}"
-        )
+        # Assuming the query is in the 'body' of a JSON payload
+        body = json.loads(event.get("body", "{}"))
+        query = body.get("query")
 
-        logger.info("Attempting to initialize client...")
-        await client.initialize()
-        logger.info("Client initialized successfully.")
-
-        # クエリを実行
-        logger.info(f"Querying with message: {message}")
-        response_content_from_agent = await client.query(message)
-        logger.info(f"Received response: {response_content_from_agent}")
-
-        # 利用可能なツール情報も含める
-        logger.info("Fetching available tools")
-        available_tools = await client.get_available_tools()
-
-        response_body_payload = {
-            "response": response_content_from_agent,
-            "available_tools": available_tools,
-            "servers_connected": list(mcp_connections.keys()),
-        }
-        logger.info(
-            "Final response body to be returned:"
-            f" {json.dumps(response_body_payload, ensure_ascii=False)}"
-        )
-
-        return {
-            "statusCode": 200,
-            "headers": {
-                "Content-Type": "application/json",
-                "Access-Control-Allow-Origin": "*",
-            },
-            "body": json.dumps(
-                response_body_payload,
-                ensure_ascii=False,
-            ),
-        }
+        if not query:
+            return {
+                "statusCode": 400,
+                "body": json.dumps({"error": "Query not provided in request body."}),
+            }
+            
+        import asyncio
+        result = asyncio.run(process_query(query))
+        
+        return {"statusCode": 200, "body": json.dumps({"response": result})}
 
     except Exception as e:
-        logger.error(f"Error during query processing: {str(e)}", exc_info=True)
+        logger.error(f"Error during query processing: {e}", exc_info=True)
         return {
             "statusCode": 500,
-            "body": json.dumps(
-                {
-                    "error": str(e),
-                    "details": "Check Lambda logs for mcp-client for more details.",
-                }
-            ),
+            "body": json.dumps({"error": str(e)}),
         }
-
-    finally:
-        if client:
-            await client.close()
-
-
-def lambda_handler(event, context):
-    """Lambda関数のエントリーポイント"""
-
-    http_method = event.get("httpMethod", "")
-
-    if http_method in ("POST", "GET"):
-        return asyncio.run(process_query(event))
-    else:
-        # httpMethodキーが存在しない場合 (テスト等)
-        if "body" in event:
-            return asyncio.run(process_query(event))
-        else:
-            return {
-                "statusCode": 405,
-                "body": json.dumps(
-                    {"error": "Method not allowed or invalid event structure"}
-                ),
-            }
