@@ -40,13 +40,13 @@ def create_app(auth_api_key: str | None) -> FastAPI:
 
             async def tool_list_generator():
                 # --- ★★★ 修正箇所 ★★★ ---
-                # クライアントが期待するJSON-RPC 2.0形式のレスポンスを作成
+                # resultの値が {"tools": [...]} という形式のオブジェクトになるように修正
                 jsonrpc_response = {
                     "jsonrpc": "2.0",
-                    "id": "0",  # list_toolsにはリクエストIDがないため "0" や null が一般的
-                    "result": tool_definitions, # ツールリスト
+                    "id": "0",
+                    "result": {"tools": tool_definitions}, # "tools"キーを追加
                 }
-
+                
                 yield f"data: {json.dumps(jsonrpc_response)}\n\n"
 
             return StreamingResponse(
