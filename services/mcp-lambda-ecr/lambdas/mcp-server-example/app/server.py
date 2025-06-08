@@ -1,17 +1,11 @@
 import asyncio
 import logging
-
-from fastapi import Depends
-from fastapi import FastAPI
-from fastapi import HTTPException
-from fastapi import Request
-from fastapi import status
-from fastapi.responses import StreamingResponse
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.security import APIKeyHeader
+from fastapi.responses import StreamingResponse
 from mcp.protocol import Message
-from mcp.protocol import Tool
-
-# from langchain_core.tools import tool as ToolDecorator # toolデコレータも不要に
+# 未使用のToolをimport文から削除
+# from mcp.protocol import Tool
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +21,6 @@ def create_app(auth_api_key: str | None) -> FastAPI:
     )
 
     # --- Tool Definition ---
-    # ツールを定義しないので、このセクションは空にする
-    tools = []
     tool_definitions = []
 
     # --- Authentication ---
@@ -49,31 +41,24 @@ def create_app(auth_api_key: str | None) -> FastAPI:
 
     @app.route("/mcp", methods=["GET", "POST"])
     async def mcp_endpoint(request: Request, _=Depends(api_key_auth)):
-        # GET: SSE接続の開始とツールリストの送信 (リストは空)
         if request.method == "GET":
-
             async def tool_list_generator():
                 list_tools_response = Message(
                     id="0",
                     type="response",
-                    payload={
-                        "result": [t.model_dump() for t in tool_definitions]
-                    },  # tool_definitions は空
+                    payload={"result": [t.model_dump() for t in tool_definitions]},
                 )
                 yield f"data: {list_tools_response.model_dump_json()}\n\n"
                 while True:
                     await asyncio.sleep(30)
                     yield ": keep-alive\n\n"
 
-            return StreamingResponse(
-                tool_list_generator(), media_type="text/event-stream"
-            )
+            return StreamingResponse(tool_list_generator(), media_type="text/event-stream")
 
-        # POST: ツール実行
         if request.method == "POST":
-            raise HTTPException(
+             raise HTTPException(
                 status_code=status.HTTP_501_NOT_IMPLEMENTED,
-                detail="Tool execution is not implemented in this example.",
+                detail="Tool execution is not implemented in this example."
             )
 
         raise HTTPException(status_code=405, detail="Method Not Allowed")
