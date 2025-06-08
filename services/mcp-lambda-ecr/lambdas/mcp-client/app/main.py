@@ -1,8 +1,9 @@
-import os
 import json
 import logging
-from app.mcp_client import GeminiMCPClient
+import os
+
 from app.aws_utils import get_secret_value
+from app.mcp_client import GeminiMCPClient
 
 # Configure logging
 logger = logging.getLogger()
@@ -17,12 +18,8 @@ COMMON_SECRET_NAME = os.environ.get("COMMON_SECRET_NAME")
 client = None
 try:
     # Retrieve secrets using the helper function
-    function_url = get_secret_value(
-        MCP_SERVER_EXAMPLE_SECRET_NAME, "FUNCTION_URL"
-    )
-    gemini_api_key = get_secret_value(
-        COMMON_SECRET_NAME, "GEMINI_API_KEY"
-    )
+    function_url = get_secret_value(MCP_SERVER_EXAMPLE_SECRET_NAME, "FUNCTION_URL")
+    gemini_api_key = get_secret_value(COMMON_SECRET_NAME, "GEMINI_API_KEY")
     x_api_key = get_secret_value(COMMON_SECRET_NAME, "X_API_KEY")
 
     if not all([function_url, gemini_api_key, x_api_key]):
@@ -42,32 +39,36 @@ try:
     logger.info("Successfully initialized GeminiMCPClient.")
 
 except Exception as e:
-    logger.error(f"Failed to initialize GeminiMCPClient at cold start: {e}", exc_info=True)
+    logger.error(
+        f"Failed to initialize GeminiMCPClient at cold start: {e}", exc_info=True
+    )
 
 
 async def process_query(query: str):
     """Initializes client if needed and processes the user query."""
     if not client:
-        raise RuntimeError("Client is not initialized. Check cold start logs for errors.")
-    
+        raise RuntimeError(
+            "Client is not initialized. Check cold start logs for errors."
+        )
+
     logger.info("Initializing client for the request...")
     await client.initialize()
-    
+
     logger.info(f"Processing query: {query}")
     response_chunks = []
     async for chunk in client.astream(query):
         response_chunks.append(chunk)
-        
+
     logger.info("Closing client resources.")
     await client.close()
-    
+
     return "".join(map(str, response_chunks))
 
 
-def handler(event, context):
+def lambda_handler(event, context):
     """AWS Lambda handler function."""
     logger.info(f"Received event: {json.dumps(event)}")
-    
+
     try:
         # Assuming the query is in the 'body' of a JSON payload
         body = json.loads(event.get("body", "{}"))
@@ -78,10 +79,11 @@ def handler(event, context):
                 "statusCode": 400,
                 "body": json.dumps({"error": "Query not provided in request body."}),
             }
-            
+
         import asyncio
+
         result = asyncio.run(process_query(query))
-        
+
         return {"statusCode": 200, "body": json.dumps({"response": result})}
 
     except Exception as e:
