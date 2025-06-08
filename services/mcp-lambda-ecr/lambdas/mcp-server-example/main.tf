@@ -27,13 +27,13 @@ resource "aws_cloudwatch_log_group" "lambda_log_group" {
   retention_in_days = var.log_retention_days != null ? var.log_retention_days : 7
 }
 
+data "aws_secretsmanager_secret_version" "common" {
+  secret_id = "${var.project_name}/${var.environment}/common"
+}
+
 resource "aws_secretsmanager_secret" "this" {
   name        = local.secret_name
   description = "Secret for ${local.lambda_function_name}. Repository: ${var.github_repository}. WARNING: Managed by Terraform."
-}
-
-data "aws_secretsmanager_secret_version" "mcp_lambda_ecr" {
-  secret_id = "${var.project_name}/${var.environment}"
 }
 
 resource "aws_secretsmanager_secret_version" "this" {
@@ -91,7 +91,7 @@ resource "aws_iam_policy" "lambda_exec_policy" {
         Action = "secretsmanager:GetSecretValue",
         Effect = "Allow",
         Resource = [
-          data.aws_secretsmanager_secret_version.mcp_lambda_ecr.arn
+          data.aws_secretsmanager_secret_version.common.arn
         ]
       }
     ]
@@ -139,7 +139,7 @@ resource "aws_lambda_function" "this" {
 
   environment {
     variables = {
-      MCP_LAMBDA_ECR_SECRET_NAME = data.aws_secretsmanager_secret_version.mcp_lambda_ecr.secret_id
+      COMMON_SECRET_NAME = data.aws_secretsmanager_secret_version.common.secret_id
     }
   }
 }

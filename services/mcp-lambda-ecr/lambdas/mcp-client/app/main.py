@@ -38,8 +38,10 @@ def get_secret_value(
 mcp_server_example_url_key = get_secret_value(
     os.environ.get("MCP_SERVER_EXAMPLE_SECRET_NAME"), "FUNCTION_URL"
 )
-
-x_api_key = get_secret_value(os.environ.get("MCP_LAMBDA_ECR_SECRET_NAME"), "X_API_KEY")
+gemini_api_key = get_secret_value(
+    os.environ.get("COMMON_SECRET_NAME"), "GEMINI_API_KEY"
+)
+x_api_key = get_secret_value(os.environ.get("COMMON_SECRET_NAME"), "X_API_KEY")
 
 MCP_CONNECTIONS = {
     # "math": {
@@ -82,9 +84,7 @@ async def process_query(event: Dict[str, Any]) -> Dict[str, Any]:
         return {"statusCode": 400, "body": json.dumps({"error": "Message is required"})}
 
     client = GeminiMCPClient(
-        gemini_api_key=get_secret_value(
-            os.environ.get("THIS_SECRET_NAME"), "GEMINI_API_KEY"
-        ),
+        gemini_api_key=gemini_api_key,
         mcp_connections=MCP_CONNECTIONS,
     )
     logger.info(

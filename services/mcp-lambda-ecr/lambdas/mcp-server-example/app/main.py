@@ -50,17 +50,9 @@ def lambda_handler(event, context):
     # --- APIキー取得 ---
     expected_api_key = None
     try:
-        # 環境変数名はTerraformで設定するものと合わせる
-        # ご提示の環境変数名と固定キー名を使用
-        api_key_secret_name_from_env = os.environ[
-            "MCP_LAMBDA_ECR_SECRET_NAME"
-        ]  # 未設定ならKeyError
-        api_key_json_key_from_env = "X_API_KEY"  # 固定のJSONキー名
-
         expected_api_key = get_secret_value(
-            api_key_secret_name_from_env, api_key_json_key_from_env
+            os.environ.get("COMMON_SECRET_NAME"), "X_API_KEY"
         )
-        # 取得成功のログは get_secret_value 内で出力されるためここでは省略可
 
     except KeyError as e:
         # 環境変数が設定されていない場合

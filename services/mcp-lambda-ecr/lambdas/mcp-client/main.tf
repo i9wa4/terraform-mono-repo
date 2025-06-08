@@ -13,7 +13,6 @@ provider "aws" {
 locals {
   app_name             = basename(abspath(path.module))
   lambda_function_name = "${var.project_name}-${var.environment}-${local.app_name}"
-  secret_name          = "${var.project_name}/${var.environment}/${local.app_name}"
 }
 
 data "aws_caller_identity" "current" {}
@@ -27,28 +26,12 @@ resource "aws_cloudwatch_log_group" "lambda_log_group" {
   retention_in_days = var.log_retention_days != null ? var.log_retention_days : 7
 }
 
+data "aws_secretsmanager_secret_version" "common" {
+  secret_id = "${var.project_name}/${var.environment}/common"
+}
+
 data "aws_secretsmanager_secret_version" "mcp_server_example" {
   secret_id = "${var.project_name}/${var.environment}/mcp-server-example"
-}
-
-data "aws_secretsmanager_secret_version" "mcp_lambda_ecr" {
-  secret_id = "${var.project_name}/${var.environment}"
-}
-
-resource "aws_secretsmanager_secret" "this" {
-  name        = local.secret_name
-  description = "Secret for ${local.lambda_function_name}. Repository: ${var.github_repository}."
-
-  secret_string = jsonencode({
-    GEMINI_API_KEY = "dummy"
-    X_API_KEY      = "dummy"
-  })
-
-  lifecycle {
-    ignore_changes = [
-      secret_string,
-    ]
-  }
 }
 
 # --------------------
@@ -99,8 +82,8 @@ resource "aws_iam_policy" "lambda_exec_policy" {
         Effect = "Allow",
         Resource = [
           aws_secretsmanager_secret.this.arn,
-          data.aws_secretsmanager_secret_version.mcp_server_example.arn,
-          data.aws_secretsmanager_secret_version.mcp_lambda_ecr.arn
+          data.aws_secretsmanager_secret_version.common.arn,
+          data.aws_secretsmanager_secret_version.mcp_server_example.arn
         ]
       }
     ]
@@ -148,9 +131,8 @@ resource "aws_lambda_function" "this" {
 
   environment {
     variables = {
-      THIS_SECRET_NAME               = local.secret_name
+      COMMON_SECRET_NAME             = data.aws_secretsmanager_secret_version.common.secret_id
       MCP_SERVER_EXAMPLE_SECRET_NAME = data.aws_secretsmanager_secret_version.mcp_server_example.secret_id
-      MCP_LAMBDA_ECR_SECRET_NAME     = data.aws_secretsmanager_secret_version.mcp_lambda_ecr.secret_id
     }
   }
 }
