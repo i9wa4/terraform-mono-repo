@@ -1,9 +1,9 @@
+import os
 import json
 import logging
-import os
-
-from app.aws_utils import get_secret_value
+import asyncio
 from app.mcp_client import GeminiMCPClient
+from app.aws_utils import get_secret_value
 
 # Configure logging
 logger = logging.getLogger()
@@ -18,8 +18,12 @@ COMMON_SECRET_NAME = os.environ.get("COMMON_SECRET_NAME")
 client = None
 try:
     # Retrieve secrets using the helper function
-    function_url = get_secret_value(MCP_SERVER_EXAMPLE_SECRET_NAME, "FUNCTION_URL")
-    gemini_api_key = get_secret_value(COMMON_SECRET_NAME, "GEMINI_API_KEY")
+    function_url = get_secret_value(
+        MCP_SERVER_EXAMPLE_SECRET_NAME, "FUNCTION_URL"
+    )
+    gemini_api_key = get_secret_value(
+        COMMON_SECRET_NAME, "GEMINI_API_KEY"
+    )
     x_api_key = get_secret_value(COMMON_SECRET_NAME, "X_API_KEY")
 
     if not all([function_url, gemini_api_key, x_api_key]):
@@ -39,17 +43,13 @@ try:
     logger.info("Successfully initialized GeminiMCPClient.")
 
 except Exception as e:
-    logger.error(
-        f"Failed to initialize GeminiMCPClient at cold start: {e}", exc_info=True
-    )
+    logger.error(f"Failed to initialize GeminiMCPClient at cold start: {e}", exc_info=True)
 
 
 async def process_query(query: str):
     """Initializes client if needed and processes the user query."""
     if not client:
-        raise RuntimeError(
-            "Client is not initialized. Check cold start logs for errors."
-        )
+        raise RuntimeError("Client is not initialized. Check cold start logs for errors.")
 
     logger.info("Initializing client for the request...")
     await client.initialize()
@@ -72,15 +72,14 @@ def lambda_handler(event, context):
     try:
         # Assuming the query is in the 'body' of a JSON payload
         body = json.loads(event.get("body", "{}"))
-        query = body.get("query")
+        # "query" の代わりに "message" キーから値を取得するように修正
+        query = body.get("message")
 
         if not query:
             return {
                 "statusCode": 400,
                 "body": json.dumps({"error": "Query not provided in request body."}),
             }
-
-        import asyncio
 
         result = asyncio.run(process_query(query))
 
