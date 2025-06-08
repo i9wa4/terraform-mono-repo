@@ -43,7 +43,7 @@ variable "lambda_timeout" {
   description = "Lambda function timeout in seconds."
   type        = number
   default     = 90
-  default     = 30
+  # default     = 30
 }
 
 variable "lambda_architecture" {
