@@ -165,6 +165,9 @@ resource "aws_lambda_function" "this" {
   environment {
     variables = {
       COMMON_SECRET_NAME = data.aws_secretsmanager_secret_version.common.secret_id
+      CONFIG_SECRET_NAME = local.config_secret_name
+      MCP_MODULE_PATH    = "mcp_databricks_server.main"
+      MCP_OBJECT_NAME    = "mcp"
     }
   }
 }
@@ -194,13 +197,4 @@ resource "aws_lambda_function_url" "this" {
   depends_on = [
     aws_lambda_permission.allow_mcp_client_invoke
   ]
-
-  environment {
-    variables = {
-      MCP_MODULE_PATH    = "mcp_databricks_server.main"
-      MCP_OBJECT_NAME    = "mcp"
-      COMMON_SECRET_NAME = data.aws_secretsmanager_secret_version.common.secret_id
-      CONFIG_SECRET_NAME = local.config_secret_name
-    }
-  }
 }
