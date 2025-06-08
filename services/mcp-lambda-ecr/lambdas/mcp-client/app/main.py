@@ -2,8 +2,7 @@ import asyncio
 import json
 import logging
 import os
-from typing import Any
-from typing import Dict
+from typing import Any, Dict
 
 import boto3
 from app.mcp_client import GeminiMCPClient
@@ -35,11 +34,10 @@ def get_secret_value(
         )
         raise
 
-
 async def process_query(event: Dict[str, Any]) -> Dict[str, Any]:
     """クエリを処理してレスポンスを返す"""
 
-    # ===== ここから: 初期化処理をすべてハンドラ内に移動 =====
+    # ===== 初期化処理 =====
     mcp_server_example_url_key = get_secret_value(
         os.environ.get("MCP_SERVER_EXAMPLE_SECRET_NAME"), "FUNCTION_URL"
     )
@@ -55,7 +53,7 @@ async def process_query(event: Dict[str, Any]) -> Dict[str, Any]:
             "headers": {"X-Api-Key": x_api_key},
         },
     }
-    # ===== ここまで: 初期化処理 =====
+    # ======================
 
     # リクエストボディからメッセージを取得
     body = json.loads(event.get("body", "{}"))
@@ -65,7 +63,7 @@ async def process_query(event: Dict[str, Any]) -> Dict[str, Any]:
     if not message:
         return {"statusCode": 400, "body": json.dumps({"error": "Message is required"})}
 
-    client = None  # finallyブロックのために定義
+    client = None # finallyブロックのために定義
     try:
         client = GeminiMCPClient(
             gemini_api_key=gemini_api_key,
@@ -130,7 +128,8 @@ async def process_query(event: Dict[str, Any]) -> Dict[str, Any]:
 def lambda_handler(event, context):
     """Lambda関数のエントリーポイント"""
 
-    http_method = event.get("requestContext", {}).get("http", {}).get("method", "")
+    # ===== ここを修正しました =====
+    http_method = event.get("httpMethod", "")
 
     if http_method == "POST":
         return asyncio.run(process_query(event))
@@ -138,7 +137,14 @@ def lambda_handler(event, context):
         # ヘルスチェック
         return {
             "statusCode": 200,
-            "body": json.dumps({"status": "healthy"}),
+            "body": json.dumps({
+                "status": "healthy"
+            }),
         }
     else:
-        return {"statusCode": 405, "body": json.dumps({"error": "Method not allowed"})}
+        # POST/GET以外、またはhttpMethodキーが存在しない場合
+        # (直接のテスト呼び出しなど)
+        if 'body' in event:
+            return asyncio.run(process_query(event))
+        else:
+            return {"statusCode": 405, "body": json.dumps({"error": "Method not allowed or invalid event structure"})}
