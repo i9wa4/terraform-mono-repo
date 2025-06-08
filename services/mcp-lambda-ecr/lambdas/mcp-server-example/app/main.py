@@ -1,92 +1,38 @@
 import os
-import json
 import logging
-import asyncio
-from app.mcp_client import GeminiMCPClient
+from mangum import Mangum
 from app.aws_utils import get_secret_value
+from app.server import create_app
 
-# Configure logging
+# --- Logging Configuration ---
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
 # --- Environment Variables ---
-MCP_SERVER_EXAMPLE_SECRET_NAME = os.environ.get("MCP_SERVER_EXAMPLE_SECRET_NAME")
 COMMON_SECRET_NAME = os.environ.get("COMMON_SECRET_NAME")
 
-# --- Initialize Client at Cold Start ---
-client = None
+# --- Initialization at Cold Start ---
+app = None
 try:
-    function_url = get_secret_value(
-        MCP_SERVER_EXAMPLE_SECRET_NAME, "FUNCTION_URL"
-    )
-    gemini_api_key = get_secret_value(
-        COMMON_SECRET_NAME, "GEMINI_API_KEY"
-    )
+    logger.info("Initializing application at cold start...")
+
+    # このサーバー自身を保護するためのAPIキーのみ取得
     x_api_key = get_secret_value(COMMON_SECRET_NAME, "X_API_KEY")
 
-    if not all([function_url, gemini_api_key, x_api_key]):
-        raise ValueError("One or more required secrets could not be retrieved.")
+    # サーバー本体のファクトリ関数を呼び出し、FastAPIアプリを生成
+    app = create_app(auth_api_key=x_api_key)
 
-    # --- 取得したURLの末尾に /mcp を追加 ---
-    if not function_url.endswith('/'):
-        function_url += '/'
-    mcp_endpoint_url = function_url + "mcp"
-    logger.info(f"Connecting to MCP server at: {mcp_endpoint_url}")
-
-    client = GeminiMCPClient(
-        gemini_api_key=gemini_api_key,
-        mcp_connections={
-            "mcp_server_example": {
-                "transport": "sse",
-                "url": mcp_endpoint_url,  # 修正したURLを使用
-                "headers": {"X-Api-Key": x_api_key},
-            }
-        },
-    )
-    logger.info("Successfully initialized GeminiMCPClient.")
+    logger.info("Application initialized successfully.")
 
 except Exception as e:
-    logger.error(f"Failed to initialize GeminiMCPClient at cold start: {e}", exc_info=True)
+    logger.critical(f"Failed to initialize the application: {e}", exc_info=True)
+    from fastapi import FastAPI, status
 
+    app = FastAPI()
+    @app.get("/{path:path}", status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
+    def critical_error_handler(path: str):
+        return {"detail": f"Service unavailable due to initialization failure: {e}"}
 
-async def process_query(query: str):
-    if not client:
-        raise RuntimeError("Client is not initialized. Check cold start logs for errors.")
-    
-    logger.info("Initializing client for the request...")
-    await client.initialize()
-    
-    logger.info(f"Processing query: {query}")
-    response_chunks = []
-    async for chunk in client.astream(query):
-        response_chunks.append(chunk)
-        
-    logger.info("Closing client resources.")
-    await client.close()
-    
-    return "".join(map(str, response_chunks))
-
-
-def lambda_handler(event, context):
-    logger.info(f"Received event: {json.dumps(event)}")
-    
-    try:
-        body = json.loads(event.get("body", "{}"))
-        query = body.get("message")
-
-        if not query:
-            return {
-                "statusCode": 400,
-                "body": json.dumps({"error": "Query not provided in request body."}),
-            }
-            
-        result = asyncio.run(process_query(query))
-        
-        return {"statusCode": 200, "body": json.dumps({"response": result})}
-
-    except Exception as e:
-        logger.error(f"Error during query processing: {e}", exc_info=True)
-        return {
-            "statusCode": 500,
-            "body": json.dumps({"error": str(e)}),
-        }
+# --- Lambda Handler ---
+# MangumがLambdaイベントをFastAPIアプリに中継する
+lambda_handler = Mangum(app, lifespan="off")

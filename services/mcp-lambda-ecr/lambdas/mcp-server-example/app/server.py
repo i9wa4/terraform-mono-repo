@@ -1,11 +1,9 @@
 import asyncio
+import json
 import logging
 from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.security import APIKeyHeader
 from fastapi.responses import StreamingResponse
-from mcp.protocol import Message
-# 未使用のToolをimport文から削除
-# from mcp.protocol import Tool
 
 logger = logging.getLogger(__name__)
 
@@ -20,10 +18,8 @@ def create_app(auth_api_key: str | None) -> FastAPI:
         version="1.0.0",
     )
 
-    # --- Tool Definition ---
     tool_definitions = []
 
-    # --- Authentication ---
     api_key_header = APIKeyHeader(name="X-Api-Key", auto_error=False)
 
     async def api_key_auth(api_key: str = Depends(api_key_header)):
@@ -34,7 +30,6 @@ def create_app(auth_api_key: str | None) -> FastAPI:
             )
         return api_key
 
-    # --- Endpoints ---
     @app.get("/")
     def read_root():
         return {"message": "MCP Server Example is running (no tools configured)."}
@@ -42,23 +37,29 @@ def create_app(auth_api_key: str | None) -> FastAPI:
     @app.route("/mcp", methods=["GET", "POST"])
     async def mcp_endpoint(request: Request, _=Depends(api_key_auth)):
         if request.method == "GET":
+
             async def tool_list_generator():
-                list_tools_response = Message(
-                    id="0",
-                    type="response",
-                    payload={"result": [t.model_dump() for t in tool_definitions]},
-                )
-                yield f"data: {list_tools_response.model_dump_json()}\n\n"
+                # Messageクラスの代わりにPython標準のdict（辞書）を使用
+                list_tools_response = {
+                    "id": "0",
+                    "type": "response",
+                    "payload": {"result": tool_definitions},
+                }
+                # .model_dump_json()の代わりに標準ライブラリのjson.dumpsを使用
+                yield f"data: {json.dumps(list_tools_response)}\n\n"
+
                 while True:
                     await asyncio.sleep(30)
                     yield ": keep-alive\n\n"
 
-            return StreamingResponse(tool_list_generator(), media_type="text/event-stream")
+            return StreamingResponse(
+                tool_list_generator(), media_type="text/event-stream"
+            )
 
         if request.method == "POST":
-             raise HTTPException(
+            raise HTTPException(
                 status_code=status.HTTP_501_NOT_IMPLEMENTED,
-                detail="Tool execution is not implemented in this example."
+                detail="Tool execution is not implemented in this example.",
             )
 
         raise HTTPException(status_code=405, detail="Method Not Allowed")
