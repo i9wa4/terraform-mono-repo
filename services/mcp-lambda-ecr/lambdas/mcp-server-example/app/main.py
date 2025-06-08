@@ -1,8 +1,9 @@
-import os
 import logging
-from mangum import Mangum
+import os
+
 from app.aws_utils import get_secret_value
 from app.server import create_app
+from mangum import Mangum
 
 # --- Logging Configuration ---
 logger = logging.getLogger()
@@ -26,12 +27,15 @@ try:
 
 except Exception as e:
     logger.critical(f"Failed to initialize the application: {e}", exc_info=True)
-    from fastapi import FastAPI, status
+    from fastapi import FastAPI
+    from fastapi import status
 
     app = FastAPI()
+
     @app.get("/{path:path}", status_code=status.HTTP_503_SERVICE_UNAVAILABLE)
     def critical_error_handler(path: str):
         return {"detail": f"Service unavailable due to initialization failure: {e}"}
+
 
 # --- Lambda Handler ---
 # MangumがLambdaイベントをFastAPIアプリに中継する
