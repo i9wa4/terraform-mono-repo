@@ -19,30 +19,37 @@ COMMON_SECRET_NAME = os.environ.get("COMMON_SECRET_NAME")
 # --- Initialize Client at Cold Start ---
 client = None
 try:
-    function_url = get_secret_value(MCP_SERVER_EXAMPLE_SECRET_NAME, "FUNCTION_URL")
+    # サーバーのLambda関数名をシークレットから取得
+    server_function_name = get_secret_value(
+        MCP_SERVER_EXAMPLE_SECRET_NAME, "FUNCTION_NAME"
+    )
     gemini_api_key = get_secret_value(COMMON_SECRET_NAME, "GEMINI_API_KEY")
+    # APIキーはboto3の認証に含まれるため不要だが、将来的な利用を想定して残す
     x_api_key = get_secret_value(COMMON_SECRET_NAME, "X_API_KEY")
 
-    if not all([function_url, gemini_api_key, x_api_key]):
+    if not all([server_function_name, gemini_api_key, x_api_key]):
+        logger.error(
+            "Failed to retrieve one or more required values: "
+            f"server_function_name={server_function_name}, "
+            f"gemini_api_key is_set={bool(gemini_api_key)}, "
+            f"x_api_key is_set={bool(x_api_key)}"
+        )
         raise ValueError("One or more required secrets could not be retrieved.")
 
-    # --- 修正箇所：取得したURLの末尾に /mcp を追加 ---
-    if not function_url.endswith("/"):
-        function_url += "/"
-    mcp_endpoint_url = function_url + "mcp"
-    logger.info(f"Connecting to MCP server at: {mcp_endpoint_url}")
+    logger.info(f"Target server Lambda function: {server_function_name}")
 
     client = GeminiMCPClient(
         gemini_api_key=gemini_api_key,
         mcp_connections={
             "mcp_server_example": {
-                "transport": "sse",
-                "url": mcp_endpoint_url,  # 修正したURLを使用
-                "headers": {"X-Api-Key": x_api_key},
+                # boto3 を使って直接Lambdaを呼び出す
+                "transport": "boto",
+                "function_name": server_function_name,
+                # boto3呼び出しではヘッダーは不要
             }
         },
     )
-    logger.info("Successfully initialized GeminiMCPClient.")
+    logger.info("Successfully initialized GeminiMCPClient with BotoMCPTransport.")
 
 except Exception as e:
     logger.error(
