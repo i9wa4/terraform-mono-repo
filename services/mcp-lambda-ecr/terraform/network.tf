@@ -142,4 +142,23 @@ resource "aws_security_group" "lambda" {
   tags = {
     Name = "${var.project_name}-${var.environment}-lambda"
   }
+}
+
+# ------------------------------------------------------------------------------
+# VPC Endpoints
+# ------------------------------------------------------------------------------
+resource "aws_vpc_endpoint" "secrets_manager" {
+  vpc_id            = aws_vpc.this.id
+  service_name      = "com.amazonaws.${var.aws_region}.secretsmanager"
+  vpc_endpoint_type = "Interface"
+
+  subnet_ids = aws_subnet.private[*].id
+  security_group_ids = [
+    aws_security_group.lambda.id
+  ]
+  private_dns_enabled = true
+
+  tags = {
+    Name = "${var.project_name}-${var.environment}-secretsmanager-endpoint"
+  }
 } 
