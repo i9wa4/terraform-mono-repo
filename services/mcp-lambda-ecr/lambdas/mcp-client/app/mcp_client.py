@@ -4,9 +4,10 @@ from typing import Dict
 from typing import List
 
 from langchain_core.messages import HumanMessage
+from langchain_core.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_mcp_adapters.client import MultiServerMCPClient
-from langgraph.prebuilt import create_react_agent
+from langgraph.prebuilt import create_tool_calling_agent
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -43,8 +44,16 @@ class GeminiMCPClient:
         # README の例に従い、インスタンスから直接 get_tools() を呼び出す
         tools = await self.client.get_tools()
 
-        # Geminiモデルでエージェントを作成
-        self.agent = create_react_agent(self.model, tools)
+        # ツール利用を促すためのプロンプトを明示的に指定
+        prompt = ChatPromptTemplate.from_messages(
+            [
+                ("system", "You are a helpful assistant. Use tools to answer questions."),
+                ("placeholder", "{chat_history}"),
+                ("human", "{input}"),
+                ("placeholder", "{agent_scratchpad}"),
+            ]
+        )
+        self.agent = create_tool_calling_agent(self.model, tools, prompt)
 
     async def query(self, message: str) -> str:
         """エージェントにクエリを送信"""
@@ -58,10 +67,13 @@ class GeminiMCPClient:
                 )
 
         response = await self.agent.ainvoke(
-            {"messages": [HumanMessage(content=message)]}
+            {"input": message, "chat_history": []}  # プロンプトに合わせて入力キーを修正
         )
 
-        return response["messages"][-1].content
+        # 出力形式が変更されたため、レスポンスの解析方法を修正
+        if "output" in response:
+            return response["output"]
+        return "No response from agent."
 
     async def get_available_tools(self) -> List[str]:
         """利用可能なツール一覧を取得"""
