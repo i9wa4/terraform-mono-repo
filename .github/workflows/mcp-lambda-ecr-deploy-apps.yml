@@ -66,6 +66,7 @@ jobs:
           context: ${{ env.TF_WORKING_DIR }}/lambdas/${{ matrix.app_name }}
           push: true
           tags: ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT_NAME }}-${{ github.event.inputs.environment }}-${{ matrix.app_name }}:${{ github.sha }}
+          provenance: false
           # GHAをキャッシュバックエンドとして利用
           cache-from: type=gha,scope=${{ github.workflow }}-${{ matrix.app_name }}-${{ github.event.inputs.environment }}
           cache-to: type=gha,mode=max,scope=${{ github.workflow }}-${{ matrix.app_name }}-${{ github.event.inputs.environment }}
