@@ -123,25 +123,49 @@ resource "aws_security_group" "lambda" {
   description = "Security group for Lambda functions"
   vpc_id      = aws_vpc.this.id
 
-  ingress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    self        = true
-    description = "Allow all traffic from the same security group"
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-    description = "Allow all outbound traffic"
-  }
-
   tags = {
     Name = "${var.project_name}-${var.environment}-lambda"
   }
+}
+
+resource "aws_security_group" "vpc_endpoint" {
+  name        = "${var.project_name}-${var.environment}-vpc-endpoint"
+  description = "Security group for VPC endpoints"
+  vpc_id      = aws_vpc.this.id
+
+  tags = {
+    Name = "${var.project_name}-${var.environment}-vpc-endpoint"
+  }
+}
+
+resource "aws_security_group_rule" "lambda_ingress_self" {
+  type              = "ingress"
+  from_port         = 0
+  to_port           = 0
+  protocol          = "-1"
+  self              = true
+  security_group_id = aws_security_group.lambda.id
+  description       = "Allow all traffic from the same security group"
+}
+
+resource "aws_security_group_rule" "lambda_egress_to_endpoint" {
+  type                     = "egress"
+  from_port                = 443
+  to_port                  = 443
+  protocol                 = "tcp"
+  source_security_group_id = aws_security_group.vpc_endpoint.id
+  security_group_id        = aws_security_group.lambda.id
+  description              = "Allow outbound traffic to VPC endpoints"
+}
+
+resource "aws_security_group_rule" "endpoint_ingress_from_lambda" {
+  type                     = "ingress"
+  from_port                = 443
+  to_port                  = 443
+  protocol                 = "tcp"
+  source_security_group_id = aws_security_group.lambda.id
+  security_group_id        = aws_security_group.vpc_endpoint.id
+  description              = "Allow HTTPS traffic from Lambda"
 }
 
 # ------------------------------------------------------------------------------
@@ -154,7 +178,7 @@ resource "aws_vpc_endpoint" "secrets_manager" {
 
   subnet_ids = aws_subnet.private[*].id
   security_group_ids = [
-    aws_security_group.lambda.id
+    aws_security_group.vpc_endpoint.id
   ]
   private_dns_enabled = true
 
