@@ -42,16 +42,16 @@ def get_secret_value(secret_name: str, secret_key: str) -> str | None:
         return None
 
     try:
-        secret_dict = json.loads(secret)
-        value = secret_dict.get(secret_key)
-        if value is None:
-            logger.warning(f"Key '{secret_key}' not found in secret '{secret_name}'.")
-        return value
-    except json.JSONDecodeError:
-        # シークレットが単一の値（JSONではない）の場合
         if secret_key:
+            secret_dict = json.loads(secret)
+            return secret_dict.get(secret_key)
+        else:
+            return secret  # JSON文字列全体を返す
+    except (ClientError, KeyError, json.JSONDecodeError) as e:
+        if secret_key:
+            logger.warning(f"Key '{secret_key}' not found in secret '{secret_name}'.")
+        else:
             logger.warning(
-                f"Secret '{secret_name}' is not a JSON object, but a key '{secret_key}'"
-                " was requested. Returning the full secret."
+                f"Could not retrieve or parse the secret '{secret_name}'. Error: {e}"
             )
-        return secret
+        return None
