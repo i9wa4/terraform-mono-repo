@@ -76,3 +76,25 @@ resource "aws_secretsmanager_secret_version" "this" {
     ]
   }
 }
+
+locals {
+  network_secret_name = "${var.project_name}/${var.environment}/network-config"
+}
+
+resource "aws_secretsmanager_secret" "network_config" {
+  name        = local.network_secret_name
+  description = "VPC configuration for the ${var.project_name} project in ${var.environment} environment."
+}
+
+resource "aws_secretsmanager_secret_version" "network_config" {
+  secret_id = aws_secretsmanager_secret.network_config.id
+  secret_string = jsonencode({
+    vpc_id                 = aws_vpc.this.id
+    private_subnet_ids     = aws_subnet.private[*].id
+    lambda_security_group_id = aws_security_group.lambda.id
+  })
+
+  lifecycle {
+    ignore_changes = [secret_string]
+  }
+}

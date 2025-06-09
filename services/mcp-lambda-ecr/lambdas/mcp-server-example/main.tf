@@ -15,6 +15,7 @@ locals {
   lambda_function_name = "${var.project_name}-${var.environment}-${local.app_name}"
   secret_name          = "${var.project_name}/${var.environment}/${local.app_name}"
   config_secret_name   = "${var.project_name}/${var.environment}/${local.app_name}/config"
+  network_config       = jsondecode(data.aws_secretsmanager_secret_version.network_config.secret_string)
 }
 
 data "aws_caller_identity" "current" {}
@@ -40,8 +41,9 @@ resource "aws_secretsmanager_secret" "this" {
 resource "aws_secretsmanager_secret_version" "this" {
   secret_id = aws_secretsmanager_secret.this.id
   secret_string = jsonencode({
-    FUNCTION_URL = aws_lambda_function_url.this.function_url
-    FUNCTION_ARN = aws_lambda_function.this.arn
+    FUNCTION_URL  = "" # VPC invocation, so no function URL
+    FUNCTION_ARN  = aws_lambda_function.this.arn
+    FUNCTION_NAME = aws_lambda_function.this.function_name
   })
 }
 
@@ -116,7 +118,8 @@ resource "aws_iam_policy" "lambda_exec_policy" {
         Effect = "Allow",
         Resource = [
           data.aws_secretsmanager_secret_version.common.arn,
-          aws_secretsmanager_secret.config.arn
+          aws_secretsmanager_secret.config.arn,
+          data.aws_secretsmanager_secret_version.network_config.arn
         ]
       }
     ]
@@ -157,6 +160,11 @@ resource "aws_lambda_function" "this" {
   memory_size = var.lambda_memory_size
   timeout     = var.lambda_timeout
 
+  vpc_config {
+    subnet_ids         = local.network_config.private_subnet_ids
+    security_group_ids = [local.network_config.lambda_security_group_id]
+  }
+
   depends_on = [
     aws_cloudwatch_log_group.lambda_log_group,
     aws_iam_role_policy_attachment.lambda_exec_policy_attachment
@@ -173,28 +181,8 @@ resource "aws_lambda_function" "this" {
 }
 
 # --------------------
-# Resource for Lambda Function URL
-#
-data "aws_iam_role" "mcp_client_lambda_role" {
-  name = "${var.project_name}-${var.environment}-mcp-client-exec-role"
-}
-
-# data "aws_caller_identity" "current" {}
-
-resource "aws_lambda_permission" "allow_mcp_client_invoke" {
-  statement_id           = "AllowInvocationFromMcpClientOnly"
-  action                 = "lambda:InvokeFunctionUrl"
-  function_name          = aws_lambda_function.this.function_name
-  function_url_auth_type = "NONE"
-  principal              = "*"
-  # principal      = data.aws_iam_role.mcp_client_lambda_role.arn
-  # source_account = data.aws_caller_identity.current.account_id
-}
-
-resource "aws_lambda_function_url" "this" {
-  function_name      = aws_lambda_function.this.function_name
-  authorization_type = "NONE"
-  depends_on = [
-    aws_lambda_permission.allow_mcp_client_invoke
-  ]
+# Resource for Lambda Function URL (REMOVED as we are using VPC invocation)
+# --------------------
+data "aws_secretsmanager_secret_version" "network_config" {
+  secret_id = "${var.project_name}/${var.environment}/network-config"
 }

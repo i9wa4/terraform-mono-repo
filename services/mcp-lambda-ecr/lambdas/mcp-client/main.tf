@@ -13,6 +13,7 @@ provider "aws" {
 locals {
   app_name             = basename(abspath(path.module))
   lambda_function_name = "${var.project_name}-${var.environment}-${local.app_name}"
+  network_config       = jsondecode(data.aws_secretsmanager_secret_version.network_config.secret_string)
 }
 
 data "aws_caller_identity" "current" {}
@@ -32,6 +33,10 @@ data "aws_secretsmanager_secret_version" "common" {
 
 data "aws_secretsmanager_secret_version" "mcp_server_example" {
   secret_id = "${var.project_name}/${var.environment}/mcp-server-example"
+}
+
+data "aws_secretsmanager_secret_version" "network_config" {
+  secret_id = "${var.project_name}/${var.environment}/network-config"
 }
 
 # --------------------
@@ -122,6 +127,11 @@ resource "aws_lambda_function" "this" {
 
   memory_size = var.lambda_memory_size
   timeout     = var.lambda_timeout
+
+  vpc_config {
+    subnet_ids         = local.network_config.private_subnet_ids
+    security_group_ids = [local.network_config.lambda_security_group_id]
+  }
 
   depends_on = [
     aws_cloudwatch_log_group.lambda_log_group,
