@@ -24,6 +24,7 @@ env:
   AWS_REGION: "ap-northeast-1"
   TF_VERSION: "1.11.4"
   TF_WORKING_DIR: "./services/mcp-lambda-ecr"
+  PROJECT_NAME: "mcp-lambda-ecr" # Makefile内でも使っているのでここで定義
 
 permissions:
   id-token: write
@@ -37,7 +38,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # NOTE: if you want to add more apps, add them here
         app_name:
           - mcp-client
           - mcp-server-example
@@ -53,8 +53,22 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR
+        id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
-        id: ecr-login
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push Docker image
+        id: build-and-push
+        uses: docker/build-push-action@v6
+        with:
+          context: ${{ env.TF_WORKING_DIR }}/lambdas/${{ matrix.app_name }}
+          push: true
+          tags: ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT_NAME }}-${{ github.event.inputs.environment }}-${{ matrix.app_name }}:${{ github.sha }}
+          # GHAをキャッシュバックエンドとして利用
+          cache-from: type=gha,scope=${{ github.workflow }}-${{ matrix.app_name }}-${{ github.event.inputs.environment }}
+          cache-to: type=gha,mode=max,scope=${{ github.workflow }}-${{ matrix.app_name }}-${{ github.event.inputs.environment }}
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
@@ -64,23 +78,29 @@ jobs:
       - name: Terraform Plan for Lambda
         id: tf_plan
         env:
+          # Makefileに渡す変数を設定
           TF_BACKEND_S3_BUCKET: ${{ secrets.TF_BACKEND_S3_BUCKET }}
+          APP_NAME: ${{ matrix.app_name }}
+          ENV: ${{ github.event.inputs.environment }}
+          # build-and-pushステップの出力をimage_uriとして渡す
+          TF_ARGS: "-var=image_uri=@${{ steps.build-and-push.outputs.digest }}"
         run: |
-          make lambda-plan \
-            APP_NAME=${{ matrix.app_name }} \
-            ENV=${{ github.event.inputs.environment }} \
-            ECR_REGISTRY=${{ steps.ecr-login.outputs.registry }} \
-            LAMBDA_VAR_FILE_ARGS= \
-            LAMBDA_ARGS='-var=github_repository=${{ github.repository }} -var=aws_region=${{ env.AWS_REGION }}'
-        working-directory: ${{ env.TF_WORKING_DIR }}
+          # Makefileの 'plan' ターゲットを直接呼び出すが、変数を上書きする
+          make -C ${{ env.TF_WORKING_DIR }} lambda-plan \
+            APP_NAME=${{ env.APP_NAME }} \
+            ENV=${{ env.ENV }} \
+            LAMBDA_ARGS="${{ env.TF_ARGS }}"
 
       - name: Terraform Apply for Lambda
         if: github.event.inputs.action == 'apply'
         env:
           TF_BACKEND_S3_BUCKET: ${{ secrets.TF_BACKEND_S3_BUCKET }}
+          APP_NAME: ${{ matrix.app_name }}
+          ENV: ${{ github.event.inputs.environment }}
         run: |
-          make lambda-apply-gha \
-            APP_NAME=${{ matrix.app_name }} \
-            ENV=${{ github.event.inputs.environment }} \
-            ECR_REGISTRY=${{ steps.ecr-login.outputs.registry }}
-        working-directory: ${{ env.TF_WORKING_DIR }}
+          # ビルドとプッシュは既に行われているため、Makefileの 'apply' ターゲットを直接呼び出す
+          # 注意：lambda-apply は内部で ecr-build-push を呼び出すので、
+          # 本来は Makefile 側を修正するのが望ましいが、今回は apply ターゲットを直接呼び出す
+          make -C ${{ env.TF_WORKING_DIR }} apply \
+            TARGET_DIR=lambdas/$(APP_NAME) \
+            PLAN_FILE_ARGS="lambdas/$(APP_NAME)/plan.tfplan"
