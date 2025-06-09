@@ -89,6 +89,14 @@ resource "aws_iam_policy" "lambda_exec_policy" {
           data.aws_secretsmanager_secret_version.common.arn,
           data.aws_secretsmanager_secret_version.mcp_server_example.arn
         ]
+      },
+      {
+        Sid    = "LambdaInvoke",
+        Action = "lambda:InvokeFunction",
+        Effect = "Allow",
+        Resource = [
+          "arn:aws:lambda:${var.aws_region}:${data.aws_caller_identity.current.account_id}:function:${var.project_name}-${var.environment}-mcp-server-example"
+        ]
       }
     ]
   })
