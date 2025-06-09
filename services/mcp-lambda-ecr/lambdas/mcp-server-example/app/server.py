@@ -141,6 +141,7 @@ def create_app(auth_api_key: str | None) -> FastAPI:
     async def mcp_endpoint(request: Request, _=Depends(api_key_auth)):
         # GETリクエスト：ツール一覧を返す
         if request.method == "GET":
+            logger.info("Received GET request for tool list.")
             async def tool_list_generator():
                 response = {"jsonrpc": "2.0", "id": "0", "result": {"tools": TOOL_DEFINITIONS}}
                 yield f"data: {json.dumps(response)}\n\n"
@@ -149,6 +150,7 @@ def create_app(auth_api_key: str | None) -> FastAPI:
         # POSTリクエスト：ツールを実行する
         if request.method == "POST":
             body = await request.json()
+            logger.info(f"Received POST request to execute tool: {json.dumps(body)}")
             tool_name = body.get("method")
             params = body.get("params", {})
             request_id = body.get("id", "1")
@@ -161,6 +163,7 @@ def create_app(auth_api_key: str | None) -> FastAPI:
 
             try:
                 result = await tool_func(**params)
+                logger.info(f"Tool '{tool_name}' executed successfully. Returning result.")
                 return JSONResponse(
                     content={"jsonrpc": "2.0", "id": request_id, "result": result}
                 )
