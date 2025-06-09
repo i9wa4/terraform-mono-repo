@@ -90,7 +90,8 @@ jobs:
           make -C ${{ env.TF_WORKING_DIR }} lambda-plan \
             APP_NAME=${{ env.APP_NAME }} \
             ENV=${{ env.ENV }} \
-            LAMBDA_ARGS="${{ env.TF_ARGS }}"
+            LAMBDA_ARGS="${{ env.TF_ARGS }}" \
+            LAMBDA_VAR_FILE_ARGS="" # GHAではtfvarsファイルを使わないため空文字で上書き
 
       - name: Terraform Apply for Lambda
         if: github.event.inputs.action == 'apply'
