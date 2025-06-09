@@ -40,14 +40,8 @@ try:
 
     client = GeminiMCPClient(
         gemini_api_key=gemini_api_key,
-        mcp_connections={
-            "mcp_server_example": {
-                # boto3 を使って直接Lambdaを呼び出す
-                "transport": "boto",
-                "function_name": server_function_name,
-                # boto3呼び出しではヘッダーは不要
-            }
-        },
+        server_function_name=server_function_name,
+        server_api_key=x_api_key,  # APIキーを渡す
     )
     logger.info("Successfully initialized GeminiMCPClient with BotoMCPTransport.")
 
