@@ -45,6 +45,14 @@ resource "aws_secretsmanager_secret_version" "this" {
     FUNCTION_ARN  = aws_lambda_function.this.arn
     FUNCTION_NAME = aws_lambda_function.this.function_name
   })
+
+  lifecycle {
+    ignore_changes = [
+      secret_string,
+    ]
+  }
+
+  depends_on = [aws_lambda_function.this]
 }
 
 resource "aws_secretsmanager_secret" "config" {
