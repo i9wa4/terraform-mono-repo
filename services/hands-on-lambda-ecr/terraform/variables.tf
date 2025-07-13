@@ -13,11 +13,13 @@ variable "environment" {
 variable "aws_region" {
   description = "AWS region for deployment."
   type        = string
+  default     = "ap-northeast-1"
 }
 
 variable "github_repository" {
   description = "The GitHub repository (e.g., your-org/your-repo) allowed to assume this role."
   type        = string
+  default     = "i9wa4/terraform-mono-repo"
 }
 
 variable "github_oidc_provider_url" {
@@ -29,5 +31,5 @@ variable "github_oidc_provider_url" {
 variable "lambda_app_names" {
   description = "A list of Lambda application names to create ECR repositories for (e.g., [\"requester\", \"another-app\"])"
   type        = list(string)
-  default     = []
+  default     = ["requester"]
 }

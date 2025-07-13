@@ -1,0 +1,118 @@
+name: hands-on-lambda-ecr-destroy
+run-name: DESTROY hands-on-lambda-ecr - ${{ github.event.inputs.target }} in ${{ github.event.inputs.environment }} by @${{ github.actor }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to destroy'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - stg
+      target:
+        description: 'Target to destroy'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - common-only
+          - lambdas-only
+      lambda_name:
+        description: 'Lambda name (if target is lambdas-only and you want specific lambda)'
+        required: false
+        type: string
+      confirm_destroy:
+        description: 'Type "DESTROY" to confirm'
+        required: true
+        type: string
+
+env:
+  AWS_REGION: "ap-northeast-1"
+  TF_VERSION: "1.11.4"
+  TF_WORKING_DIR: "./services/hands-on-lambda-ecr"
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  validate_and_destroy:
+    name: "Validate and Destroy"
+    runs-on: ubuntu-24.04-arm
+    environment: ${{ github.event.inputs.environment }}
+    defaults:
+      run:
+        working-directory: ${{ env.TF_WORKING_DIR }}
+    steps:
+      - name: Check confirmation
+        run: |
+          if [ "${{ github.event.inputs.confirm_destroy }}" != "DESTROY" ]; then
+            echo "::error::Confirmation text must be 'DESTROY'"
+            exit 1
+          fi
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials using OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.HANDS_ON_LAMBDA_ECR_TERRAFORM_IAM }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TF_VERSION }}
+
+      - name: Destroy resources
+        run: |
+          case "${{ github.event.inputs.target }}" in
+            "all")
+              echo "===== DESTROYING ALL RESOURCES ====="
+              make destroy-all \
+                ENV=${{ github.event.inputs.environment }} \
+                TF_BACKEND_S3_BUCKET=${{ secrets.HANDS_ON_LAMBDA_ECR_TERRAFORM_S3_BUCKET }}
+              ;;
+            "common-only")
+              echo "===== DESTROYING COMMON INFRASTRUCTURE ONLY ====="
+              make common-destroy \
+                ENV=${{ github.event.inputs.environment }} \
+                TF_BACKEND_S3_BUCKET=${{ secrets.HANDS_ON_LAMBDA_ECR_TERRAFORM_S3_BUCKET }}
+              ;;
+            "lambdas-only")
+              if [ -n "${{ github.event.inputs.lambda_name }}" ]; then
+                echo "===== DESTROYING SPECIFIC LAMBDA: ${{ github.event.inputs.lambda_name }} ====="
+                make lambda-destroy \
+                  APP_NAME=${{ github.event.inputs.lambda_name }} \
+                  ENV=${{ github.event.inputs.environment }} \
+                  TF_BACKEND_S3_BUCKET=${{ secrets.HANDS_ON_LAMBDA_ECR_TERRAFORM_S3_BUCKET }}
+              else
+                echo "===== DESTROYING ALL LAMBDAS ====="
+                for app_name in $(find lambdas -mindepth 1 -maxdepth 1 -type d -exec basename {} \;); do
+                  echo "Destroying Lambda: $app_name"
+                  make lambda-destroy \
+                    APP_NAME=$app_name \
+                    ENV=${{ github.event.inputs.environment }} \
+                    TF_BACKEND_S3_BUCKET=${{ secrets.HANDS_ON_LAMBDA_ECR_TERRAFORM_S3_BUCKET }} || true
+                done
+              fi
+              ;;
+          esac
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Destruction Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- Project: hands-on-lambda-ecr" >> $GITHUB_STEP_SUMMARY
+          echo "- Environment: ${{ github.event.inputs.environment }}" >> $GITHUB_STEP_SUMMARY
+          echo "- Target: ${{ github.event.inputs.target }}" >> $GITHUB_STEP_SUMMARY
+          if [ -n "${{ github.event.inputs.lambda_name }}" ]; then
+            echo "- Lambda: ${{ github.event.inputs.lambda_name }}" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "- Status: ${{ job.status }}" >> $GITHUB_STEP_SUMMARY

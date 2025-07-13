@@ -24,7 +24,7 @@ LAMBDAS_BASE_DIR := lambdas
 ENV_DIR := environments/$(ENV)
 
 # Common Infrastructure
-COMMON_VAR_FILE_ARGS := '-var-file=../$(ENV_DIR)/terraform.tfvars'
+COMMON_VAR_FILE_ARGS := $(shell test -s $(ENV_DIR)/terraform.tfvars && echo '-var-file=../$(ENV_DIR)/terraform.tfvars' || echo '')
 APP_NAMES_ARG := '-var-file=../$(ENV_DIR)/common_auto.tfvars.json'
 AWS_ACCOUNT_ID := $(strip $(shell terraform -chdir=$(COMMON_DIR) output -raw aws_account_id 2>/dev/null))
 ECR_REGISTRY := $(AWS_ACCOUNT_ID).dkr.ecr.$(AWS_REGION).amazonaws.com
@@ -32,7 +32,7 @@ PLAN_FILE_NAME := plan.tfplan
 # PLAN_DESTROY_FILE_NAME := plan.destroy.tfplan
 
 # Lambda Functions
-LAMBDA_VAR_FILE_ARGS := '-var-file=../../$(ENV_DIR)/terraform.tfvars'
+LAMBDA_VAR_FILE_ARGS := $(shell test -s $(ENV_DIR)/terraform.tfvars && echo '-var-file=../../$(ENV_DIR)/terraform.tfvars' || echo '')
 
 # ----------------------
 # Public Targets
@@ -74,6 +74,43 @@ lambda-apply-gha: ## [lambda] build image & terraform apply for GitHub Actions
 		TARGET_DIR=lambdas/$(APP_NAME) \
 		PLAN_FILE_ARGS=$(PLAN_FILE_NAME)
 
+common-plan-destroy: generate_app_names_list ## [common] terraform plan -destroy
+	$(MAKE) plan-destroy \
+		TARGET_DIR="$(COMMON_DIR)" \
+		PLAN_FILE_ARGS="-out=plan.destroy.tfplan" \
+		VAR_FILE_ARGS="$(COMMON_VAR_FILE_ARGS)" \
+		TF_ARGS="$(APP_NAMES_ARG) $(COMMON_ARGS)"
+
+common-destroy: ## [common] terraform destroy
+	$(MAKE) destroy \
+		TARGET_DIR="$(COMMON_DIR)" \
+		VAR_FILE_ARGS="$(COMMON_VAR_FILE_ARGS)" \
+		TF_ARGS="$(APP_NAMES_ARG) $(COMMON_ARGS)" \
+		PLAN_FILE_ARGS="-out=$(PLAN_FILE_NAME)"
+
+lambda-plan-destroy: ## [lambda] terraform plan -destroy (e.g. make lambda-plan-destroy APP_NAME=mcp-client)
+	$(MAKE) plan-destroy \
+		TARGET_DIR=lambdas/$(APP_NAME) \
+		VAR_FILE_ARGS=$(LAMBDA_VAR_FILE_ARGS) \
+		TF_ARGS='$(LAMBDA_ARGS) -var="image_uri=$(ECR_REGISTRY)/$(PROJECT_NAME)-$(ENV)-$(APP_NAME):$(shell git log -1 --format=%h 2>/dev/null | tr -d '[:space:]')"' \
+		PLAN_FILE_ARGS="-out=plan.destroy.tfplan"
+
+lambda-destroy: ## [lambda] terraform destroy (e.g. make lambda-destroy APP_NAME=mcp-client)
+	$(MAKE) destroy \
+		TARGET_DIR=lambdas/$(APP_NAME) \
+		VAR_FILE_ARGS=$(LAMBDA_VAR_FILE_ARGS) \
+		TF_ARGS='$(LAMBDA_ARGS) -var="image_uri=$(ECR_REGISTRY)/$(PROJECT_NAME)-$(ENV)-$(APP_NAME):$(shell git log -1 --format=%h 2>/dev/null | tr -d '[:space:]')"' \
+		PLAN_FILE_ARGS="-out=$(PLAN_FILE_NAME)"
+
+destroy-all: ## [all] destroy all resources (lambdas first, then common)
+	@echo "==> Destroying all Lambda functions..."
+	@for app_name in $$(find $(LAMBDAS_BASE_DIR) -mindepth 1 -maxdepth 1 -type d -exec basename {} \;); do \
+		echo "Destroying Lambda: $$app_name"; \
+		$(MAKE) lambda-destroy APP_NAME=$$app_name || true; \
+	done
+	@echo "==> Destroying common infrastructure..."
+	$(MAKE) common-destroy
+
 # ----------------------
 # Private Targets
 #
@@ -89,16 +126,16 @@ validate: init
 	terraform -chdir=$(TARGET_DIR) validate
 
 plan: validate
-	terraform -chdir=$(TARGET_DIR) plan $(PLAN_FILE_ARGS) $(VAR_FILE_ARGS) $(TF_ARGS)
+	terraform -chdir=$(TARGET_DIR) plan -lock=false $(PLAN_FILE_ARGS) $(VAR_FILE_ARGS) $(TF_ARGS)
 
 apply: init
-	terraform -chdir=$(TARGET_DIR) apply -auto-approve $(PLAN_FILE_ARGS)
+	terraform -chdir=$(TARGET_DIR) apply -auto-approve -lock=false $(PLAN_FILE_ARGS)
 
 plan-destroy: validate
-	terraform -chdir=$(TARGET_DIR) plan -destroy $(PLAN_FILE_ARGS) $(VAR_FILE_ARGS) $(TF_ARGS)
+	terraform -chdir=$(TARGET_DIR) plan -destroy -lock=false $(PLAN_FILE_ARGS) $(VAR_FILE_ARGS) $(TF_ARGS)
 
-destroy: plan-destroy
-	terraform -chdir=$(TARGET_DIR) destroy -auto-approve $(PLAN_FILE_ARGS)
+destroy: init
+	terraform -chdir=$(TARGET_DIR) apply -destroy -auto-approve -lock=false plan.destroy.tfplan
 
 generate_app_names_list:
 	@echo "Finding Lambda app names and generating JSON content directly..."

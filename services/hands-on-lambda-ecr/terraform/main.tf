@@ -45,6 +45,7 @@ resource "aws_ecr_repository" "app_ecr_repos" {
 
   name                 = "${var.project_name}-${var.environment}-${each.key}"
   image_tag_mutability = "IMMUTABLE"
+  force_delete         = true  # Allow deletion even when images exist
 
   image_scanning_configuration {
     scan_on_push = true
