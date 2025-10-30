@@ -1,0 +1,13 @@
+# zizmor configuration
+# https://docs.zizmor.sh/usage/
+
+rules:
+  artipacked:
+    # We need persist-credentials for AWS OIDC authentication and credential configuration
+    # The workflows only run on trusted code (manual dispatch via workflow_dispatch)
+    # and permissions are already restricted to id-token: write and contents: read
+    ignore:
+      - hands-on-lambda-ecr-deploy-apps.yml
+      - hands-on-lambda-ecr-deploy-infra.yml
+      - mcp-lambda-ecr-deploy-apps.yml
+      - mcp-lambda-ecr-deploy-infra.yml
