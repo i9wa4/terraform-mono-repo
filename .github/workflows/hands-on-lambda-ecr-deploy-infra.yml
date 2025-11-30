@@ -39,7 +39,7 @@ jobs:
         uses: actions/checkout@c2d88d3ecc89a9ef08eebf45d9637801dcee7eb5
 
       - name: Configure AWS credentials using OIDC
-        uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a
+        uses: aws-actions/configure-aws-credentials@259eac73d3898af00550394d11116c4a94c9b1dc
         with:
           role-to-assume: ${{ secrets.HANDS_ON_LAMBDA_ECR_TERRAFORM_IAM }}
           aws-region: ${{ env.AWS_REGION }}
