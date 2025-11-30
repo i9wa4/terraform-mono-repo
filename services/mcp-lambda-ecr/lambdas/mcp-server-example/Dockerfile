@@ -2,7 +2,7 @@
 FROM ghcr.io/astral-sh/uv:0.7.8 AS uv
 
 # First, bundle the dependencies into the task root.
-FROM public.ecr.aws/lambda/python:3.13 AS builder
+FROM public.ecr.aws/lambda/python:3.14 AS builder
 
 # Enable bytecode compilation, to improve cold-start performance.
 ENV UV_COMPILE_BYTECODE=1
@@ -29,7 +29,7 @@ FROM alpine/git:v2.49.1 as cloner
 WORKDIR /src
 RUN git clone https://github.com/i9wa4/mcp-databricks-server.git
 
-FROM public.ecr.aws/lambda/python:3.13
+FROM public.ecr.aws/lambda/python:3.14
 
 # Copy the runtime dependencies from the builder stage.
 COPY --from=builder ${LAMBDA_TASK_ROOT} ${LAMBDA_TASK_ROOT}
