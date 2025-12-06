@@ -1,5 +1,5 @@
 # https://docs.astral.sh/uv/guides/integration/aws-lambda/#deploying-a-docker-image
-FROM ghcr.io/astral-sh/uv:0.9.15 AS uv
+FROM ghcr.io/astral-sh/uv:0.9.16 AS uv
 
 # First, bundle the dependencies into the task root.
 FROM public.ecr.aws/lambda/python:3.14 AS builder
