@@ -57,7 +57,7 @@ jobs:
         id: ecr-login
 
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@071811a16241b026a69d0c8823fc3d7c54385db5
+        uses: hashicorp/setup-terraform@92e4d08fe1d24283952afa28216efa8f4ed5aeab
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
