@@ -25,7 +25,7 @@ RUN --mount=from=uv,source=/uv,target=/bin/uv \
     uv export --frozen --no-emit-workspace --no-dev --no-editable -o requirements.txt && \
     uv pip install -r requirements.txt --target "${LAMBDA_TASK_ROOT}"
 
-FROM alpine/git:v2.49.1 as cloner
+FROM alpine/git:v2.52.0 as cloner
 WORKDIR /src
 RUN git clone https://github.com/i9wa4/mcp-databricks-server.git
 
